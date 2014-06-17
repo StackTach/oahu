@@ -39,24 +39,22 @@ class Stream(object):
 
     def do_identifying_traits_match(self, event):
         for name, value in self.identifying_traits.iteritems():
-            if event.get(name) == self.identifying_traits[name]:
-                return True
-        return False
+            if event.get(name) != self.identifying_traits[name]:
+                return False
+        return True
 
 
 class StreamRule(object):
-    def __init__(self):
+    def __init__(self, identifying_trait_names, trigger_rule,
+                 trigger_callback):
         self.active_streams = {}   # { stream_id: Stream }
-        self.identifying_trait_names = []
+        self.identifying_trait_names = identifying_trait_names
+        self.trigger_rule = trigger_rule
+        self.trigger_callback = trigger_callback
 
     def _applies(self, event):
         """Returns True if this rule applies to the supplied Event."""
         return True
-
-    def set_identifying_trait_names(self, names):
-        """Set the uniquely identifying trait names for this rule.
-        """
-        return self.identifying_trait_names = names
 
     def get_active_stream(self, event):
         """Returns the active stream for this Event.
@@ -75,10 +73,15 @@ class StreamRule(object):
         self.active_streams[stream.uuid] = stream
         return stream
 
+    def should_trigger(self, stream, last_event):
+        if self.trigger_rule.should_trigger(stream, last_event):
+            self.trigger_callback(stream)
+            del self.active_streams[stream.uuid]
+
 
 class Pipeline(object):
-    def __init__(self):
-        self.rules = []  # [StreamRule, ...]
+    def __init__(self, rules):
+        self.rules = rules  # [StreamRule, ...]
 
     def add_event(self, event):
         message_id = event.get('message_id')
@@ -92,6 +95,7 @@ class Pipeline(object):
         for rule in self.rules:
             stream = rule.get_active_stream(event)
             if stream:
-                return stream.add_message(message_id)
-
+                stream.add_message(message_id)
+                if rule.should_trigger(stream, event):
+                    rule.trigger(stream)
 
