@@ -27,14 +27,10 @@ class Pipeline(object):
         if not message_id:
             raise BadEvent("Event has no message_id")
 
-        stream = self._find_stream_for_event(message_id, event)
-        stream.add_message(message_id)
-
-    def _find_stream_for_event(self, message_id, event):
+        # An event may apply to many streams ...
         for rule in self.rules:
             stream = rule.get_active_stream(event)
             if stream:
                 stream.add_message(message_id)
                 if rule.should_trigger(stream, event):
                     rule.trigger(stream)
-

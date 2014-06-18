@@ -40,7 +40,7 @@ class Stream(object):
                 return False
         return True
 
-    def str(self):
+    def __str__(self):
         return "<Stream %s: %d elements - %s>" % (self.uuid,
                                                   len(self.message_ids),
                                                   self.last_update)

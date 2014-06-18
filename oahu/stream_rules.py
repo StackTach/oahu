@@ -13,16 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-class TriggerRule(object):
-    def should_trigger(self, stream, last_event):
-        return False
-
-
-class TriggerCallback(object):
-    def on_trigger(self, stream):
-        print "Trigger: ", stream
-
-
 
 class StreamRule(object):
     def __init__(self, identifying_trait_names, trigger_rule,
@@ -33,13 +23,24 @@ class StreamRule(object):
         self.trigger_callback = trigger_callback
 
     def _applies(self, event):
-        """Returns True if this rule applies to the supplied Event."""
+        """Returns True if this rule applies to the supplied Event.
+
+        The default behavior says: if you have the identifying traits
+        then this rule applies. Override for more complex stuff.
+        """
+        for name in self.identifying_trait_names:
+            if name not in event:
+                return False
         return True
 
     def get_active_stream(self, event):
         """Returns the active stream for this Event.
            If no stream exists, but the rule applies to this
            event a new one is created.
+
+           The implications is there is only one
+           active stream for this rule. Which means
+           you have to select unique identifying_traits.
         """
         if not self._applies(event):
             return None
@@ -57,6 +58,3 @@ class StreamRule(object):
         if self.trigger_rule.should_trigger(stream, last_event):
             self.trigger_callback.on_trigger(stream)
             del self.active_streams[stream.uuid]
-
-
-
