@@ -13,70 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import datetime
-import uuid
-
 
 class BadEvent(Exception):
     pass
-
-
-class Stream(object):
-    def __init__(self, identifying_traits, event):
-        self.message_ids = []
-        self.uuid = str(uuid.uuid4())
-        self.last_update = datetime.datetime.utcnow()
-        self._extract_identifying_traits(identifying_traits, event)
-
-    def add_message(self, message_id):
-        self.message_ids.append(message_id)
-        self.last_update = datetime.datetime.utcnow()
-
-    def _extract_identifying_traits(self, it, event):
-        self.identifying_traits = {}  # { trait: value }
-        for name in it:
-            self.identifying_traits[name] = event[name]
-
-    def do_identifying_traits_match(self, event):
-        for name, value in self.identifying_traits.iteritems():
-            if event.get(name) != self.identifying_traits[name]:
-                return False
-        return True
-
-
-class StreamRule(object):
-    def __init__(self, identifying_trait_names, trigger_rule,
-                 trigger_callback):
-        self.active_streams = {}   # { stream_id: Stream }
-        self.identifying_trait_names = identifying_trait_names
-        self.trigger_rule = trigger_rule
-        self.trigger_callback = trigger_callback
-
-    def _applies(self, event):
-        """Returns True if this rule applies to the supplied Event."""
-        return True
-
-    def get_active_stream(self, event):
-        """Returns the active stream for this Event.
-           If no stream exists, but the rule applies to this
-           event a new one is created.
-        """
-        if not self._applies(event):
-            return None
-
-        for sid, stream in self.active_streams.iteritems():
-            if stream.do_identifying_traits_match(event):
-                return stream
-
-        # New stream ...
-        stream = Stream(self.identifying_trait_names, event)
-        self.active_streams[stream.uuid] = stream
-        return stream
-
-    def should_trigger(self, stream, last_event):
-        if self.trigger_rule.should_trigger(stream, last_event):
-            self.trigger_callback(stream)
-            del self.active_streams[stream.uuid]
 
 
 class Pipeline(object):
