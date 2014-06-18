@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import stream as pstream
 
 class StreamRule(object):
     def __init__(self, identifying_trait_names, trigger_rule,
@@ -50,7 +51,7 @@ class StreamRule(object):
                 return stream
 
         # New stream ...
-        stream = Stream(self.identifying_trait_names, event)
+        stream = pstream.Stream(self.identifying_trait_names, event)
         self.active_streams[stream.uuid] = stream
         return stream
 

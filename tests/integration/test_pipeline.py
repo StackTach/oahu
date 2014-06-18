@@ -44,12 +44,19 @@ class TestPipeline(unittest.TestCase):
 
         g = notigen.EventGenerator(100)
         now = datetime.datetime.utcnow()
-        start = now
         nevents = 0
+        unique = set()
         while nevents < 10000:
             events = g.generate(now)
             if events:
                 for event in events:
                     p.add_event(event)
+                    unique.add(event['request_id'])
                 nevents += len(events)
-                now = datetime.datetime.utcnow()
+            now = g.move_to_next_tick(now)
+
+        self.assertEqual(len(unique), len(p.rules[0].active_streams))
+        total = 0
+        for k, stream in p.rules[0].active_streams.iteritems():
+            total += len(stream.message_ids)
+        self.assertEqual(total, nevents)
