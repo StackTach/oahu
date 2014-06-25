@@ -22,6 +22,7 @@ class StreamRule(object):
         self.identifying_trait_names = identifying_trait_names
         self.trigger_rule = trigger_rule
         self.trigger_callback = trigger_callback
+        self.streams_to_purge = []
 
     def _applies(self, event):
         """Returns True if this rule applies to the supplied Event.
@@ -55,7 +56,23 @@ class StreamRule(object):
         self.active_streams[stream.uuid] = stream
         return stream
 
-    def should_trigger(self, stream, last_event):
-        if self.trigger_rule.should_trigger(stream, last_event):
+    def should_trigger(self, stream, last_event, now=None):
+        """last_event could be None if we're doing a periodic check.
+        """
+        if self.trigger_rule.should_trigger(stream, last_event, now=now):
             self.trigger_callback.on_trigger(stream)
-            del self.active_streams[stream.uuid]
+            self.streams_to_purge.append(stream.uuid)
+
+    def purge_streams(self):
+        for sid in self.streams_to_purge:
+            del self.active_streams[sid]
+        self.streams_to_purge = []
+
+    def do_expiry_check(self, now):
+        """This method provides a means to check streams without
+           an actual event.
+        """
+        for sid, stream in self.active_streams.iteritems():
+            self.should_trigger(stream, None, now=now)
+
+        self.purge_streams()

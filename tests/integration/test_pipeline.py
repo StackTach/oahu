@@ -26,19 +26,18 @@ from oahu import pipeline
 
 
 class TestCallback(object):
-    def on_trigger(self, stream):
-        print "Trigger: ", stream
+    triggered = 0
 
-    def on_expiry(self, stream):
-        print "Expiry: ", stream
+    def on_trigger(self, stream):
+        self.triggered += 1
 
 
 class TestPipeline(unittest.TestCase):
     def test_pipeline(self):
-        one_minute = trigger_rule.Inactive(60)
+        inactive = trigger_rule.Inactive(60)
+        callback = TestCallback()
         by_request = stream_rules.StreamRule(["request_id", ],
-                                             one_minute,
-                                             TestCallback())
+                                             inactive, callback)
         rules = [by_request, ]
         p = pipeline.Pipeline(rules)
 
@@ -46,7 +45,7 @@ class TestPipeline(unittest.TestCase):
         now = datetime.datetime.utcnow()
         nevents = 0
         unique = set()
-        while nevents < 10000:
+        while nevents < 5000:
             events = g.generate(now)
             if events:
                 for event in events:
@@ -55,8 +54,10 @@ class TestPipeline(unittest.TestCase):
                 nevents += len(events)
             now = g.move_to_next_tick(now)
 
-        self.assertEqual(len(unique), len(p.rules[0].active_streams))
-        total = 0
-        for k, stream in p.rules[0].active_streams.iteritems():
-            total += len(stream.message_ids)
-        self.assertEqual(total, nevents)
+        self.assertTrue(len(p.rules[0].active_streams) > 0)
+        while len(p.rules[0].active_streams) > 0:
+            now += datetime.timedelta(seconds = 2)
+            p.do_expiry_check(now)
+
+        self.assertEqual(len(unique), callback.triggered)
+        # TODO(sandy): match unique request_ids

@@ -44,5 +44,3 @@ class Stream(object):
         return "<Stream %s: %d elements - %s>" % (self.uuid,
                                                   len(self.message_ids),
                                                   self.last_update)
-
-

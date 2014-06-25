@@ -17,7 +17,7 @@ import datetime
 
 
 class TriggerRule(object):
-    def should_trigger(self, stream, last_event):
+    def should_trigger(self, stream, last_event, now=None):
         return False
 
 
@@ -26,6 +26,7 @@ class Inactive(TriggerRule):
         super(Inactive, self).__init__()
         self.expiry_in_seconds = expiry_in_seconds
 
-    def should_trigger(self, stream, last_event):
-        return (datetime.datetime.utcnow() - stream.last_update).seconds > \
-                self.expiry_in_seconds
+    def should_trigger(self, stream, last_event, now=None):
+        if now is None:
+            now = datetime.datetime.utcnow()
+        return (now - stream.last_update).seconds > self.expiry_in_seconds

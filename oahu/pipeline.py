@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import datetime
+
 
 class BadEvent(Exception):
     pass
@@ -34,3 +36,11 @@ class Pipeline(object):
                 stream.add_message(message_id)
                 if rule.should_trigger(stream, event):
                     rule.trigger(stream)
+            rule.purge_streams()
+
+    def do_expiry_check(self, now=None):
+        if now is None:
+            now = datetime.datetime.utcnow()
+
+        for rule in self.rules:
+            rule.do_expiry_check(now)

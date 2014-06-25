@@ -16,6 +16,3 @@
 class TriggerCallback(object):
     def on_trigger(self, stream):
         pass
-
-    def on_expiry(self, stream):
-        pass
