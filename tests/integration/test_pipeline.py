@@ -55,9 +55,8 @@ class TestPipeline(unittest.TestCase):
             now = g.move_to_next_tick(now)
 
         self.assertTrue(len(p.rules[0].active_streams) > 0)
-        while len(p.rules[0].active_streams) > 0:
-            now += datetime.timedelta(seconds = 2)
-            p.do_expiry_check(now)
-
+        now += datetime.timedelta(seconds=2)
+        p.do_expiry_check(now)
+        self.assertEqual(0, len(p.rules[0].active_streams))
         self.assertEqual(len(unique), callback.triggered)
         # TODO(sandy): match unique request_ids
