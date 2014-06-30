@@ -16,9 +16,11 @@
 import datetime
 import mock
 import unittest
+import uuid
 
 import notigen
 
+from oahu import external
 from oahu import stream_rules
 from oahu import trigger_callback
 from oahu import trigger_rule
@@ -36,10 +38,13 @@ class TestPipeline(unittest.TestCase):
     def test_pipeline(self):
         inactive = trigger_rule.Inactive(60)
         callback = TestCallback()
-        by_request = stream_rules.StreamRule(["request_id", ],
+        sync_engine = external.InMemorySyncEngine()
+        rule_id = str(uuid.uuid4())
+        by_request = stream_rules.StreamRule(rule_id, sync_engine,
+                                             ["request_id", ],
                                              inactive, callback)
         rules = [by_request, ]
-        p = pipeline.Pipeline(rules)
+        p = pipeline.Pipeline(rules, sync_engine)
 
         g = notigen.EventGenerator(100)
         now = datetime.datetime.utcnow()
@@ -54,9 +59,11 @@ class TestPipeline(unittest.TestCase):
                 nevents += len(events)
             now = g.move_to_next_tick(now)
 
-        self.assertTrue(len(p.rules[0].active_streams) > 0)
+        self.assertTrue(len(sync_engine.active_streams[rule_id]) > 0)
         now += datetime.timedelta(seconds=2)
         p.do_expiry_check(now)
-        self.assertEqual(0, len(p.rules[0].active_streams))
+        p.process_triggered_streams(now)
+        p.purge_streams()
+        self.assertEqual(0, len(sync_engine.active_streams[rule_id]))
         self.assertEqual(len(unique), callback.triggered)
         # TODO(sandy): match unique request_ids

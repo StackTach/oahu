@@ -15,14 +15,24 @@
 
 import stream as pstream
 
+
+"""There are several places we need to process the streams:
+   1. When a new event comes in.
+   2. Periodically to check for expired streams.
+   3. Periodically to process triggered streams.
+   4. Periodically to delete processed streams.
+   These last three could be dealing with potentially large sets
+   and each operation could be done by multiple workers.
+"""
+
 class StreamRule(object):
-    def __init__(self, identifying_trait_names, trigger_rule,
+    def __init__(self, rule_id, sync, identifying_trait_names, trigger_rule,
                  trigger_callback):
-        self.active_streams = {}   # { stream_id: Stream }
+        self.rule_id = rule_id
+        self.sync = sync
         self.identifying_trait_names = identifying_trait_names
         self.trigger_rule = trigger_rule
         self.trigger_callback = trigger_callback
-        self.streams_to_purge = []
 
     def _applies(self, event):
         """Returns True if this rule applies to the supplied Event.
@@ -47,32 +57,27 @@ class StreamRule(object):
         if not self._applies(event):
             return None
 
-        for sid, stream in self.active_streams.iteritems():
+        for stream in self.sync.get_active_streams(self.rule_id):
             if stream.do_identifying_traits_match(event):
                 return stream
 
-        # New stream ...
-        stream = pstream.Stream(self.identifying_trait_names, event)
-        self.active_streams[stream.uuid] = stream
-        return stream
+        return self.sync.create_stream(self.rule_id,
+                                       self.identifying_trait_names, event)
 
     def should_trigger(self, stream, last_event, now=None):
         """last_event could be None if we're doing a periodic check.
         """
         if self.trigger_rule.should_trigger(stream, last_event, now=now):
-            self.trigger_callback.on_trigger(stream)
-            self.streams_to_purge.append(stream.uuid)
+            stream.trigger()
 
-    def purge_streams(self):
-        for sid in self.streams_to_purge:
-            del self.active_streams[sid]
-        self.streams_to_purge = []
+    def expiry_check(self, now=None):
+        for stream in self.sync.get_active_streams(self.rule_id):
+            self.should_trigger(stream, None, now=now)
 
-    def do_expiry_check(self, now):
+    def process_triggered_streams(self, now):
         """This method provides a means to check streams without
            an actual event.
         """
-        for sid, stream in self.active_streams.iteritems():
-            self.should_trigger(stream, None, now=now)
-
-        self.purge_streams()
+        for stream in self.sync.get_triggered_streams(self.rule_id):
+            self.trigger_callback.on_trigger(stream)
+            stream.processed()

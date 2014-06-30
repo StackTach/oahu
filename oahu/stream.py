@@ -18,12 +18,26 @@ import datetime
 import uuid
 
 
+COLLECTING = 1
+TRIGGERED = 2
+PROCESSED = 3
+
+readable = {COLLECTING: "Collecting",
+            TRIGGERED: "Triggered",
+            PROCESSED: "Processed"}
+
+
+class WrongStateException(Exception):
+    pass
+
+
 class Stream(object):
     def __init__(self, identifying_traits, event):
         self.message_ids = []
         self.uuid = str(uuid.uuid4())
         self.last_update = datetime.datetime.utcnow()
         self._extract_identifying_traits(identifying_traits, event)
+        self.state = COLLECTING
 
     def add_message(self, message_id):
         self.message_ids.append(message_id)
@@ -44,3 +58,16 @@ class Stream(object):
         return "<Stream %s: %d elements - %s>" % (self.uuid,
                                                   len(self.message_ids),
                                                   self.last_update)
+    def trigger(self):
+        if self.state != COLLECTING:
+            raise WrongStateException("Unable to move to %s state from %s" %
+                (readable['TRIGGERED'], readable[self.state]))
+
+        self.state = TRIGGERED
+
+    def processed(self):
+        if self.state != TRIGGERED:
+            raise WrongStateException("Unable to move to %s state from %s" %
+                (readable['PROCESSED'], readable[self.state]))
+
+        self.state = PROCESSED

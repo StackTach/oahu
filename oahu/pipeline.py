@@ -21,7 +21,8 @@ class BadEvent(Exception):
 
 
 class Pipeline(object):
-    def __init__(self, rules):
+    def __init__(self, rules, sync_engine):
+        self.sync_engine = sync_engine
         self.rules = rules  # [StreamRule, ...]
 
     def add_event(self, event):
@@ -34,13 +35,26 @@ class Pipeline(object):
             stream = rule.get_active_stream(event)
             if stream:
                 stream.add_message(message_id)
-                if rule.should_trigger(stream, event):
-                    rule.trigger(stream)
-            rule.purge_streams()
+                rule.should_trigger(stream, event)
 
+    # These methods are called as periodic tasks and
+    # may be expensive (in that they may iterate over
+    # all streams).
     def do_expiry_check(self, now=None):
         if now is None:
             now = datetime.datetime.utcnow()
 
         for rule in self.rules:
-            rule.do_expiry_check(now)
+            rule.expiry_check(now)
+
+    def purge_streams(self):
+        self.sync_engine.purge_processed_streams()
+
+    def process_triggered_streams(self, now=None):
+        """If the stream is triggered we need to process the
+           pipeline.
+        """
+        if now is None:
+            now = datetime.datetime.utcnow()
+        for rule in self.rules:
+            rule.process_triggered_streams(now)
