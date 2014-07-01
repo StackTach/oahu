@@ -15,6 +15,15 @@
 
 import datetime
 
+"""There are several places we need to process the streams:
+   1. When a new event comes in.
+   2. Periodically to check for expired streams.
+   3. Periodically to process triggered streams.
+   4. Periodically to delete processed streams.
+   These last three could be dealing with potentially large sets
+   and each operation could be done by multiple workers.
+"""
+
 
 class BadEvent(Exception):
     pass
@@ -26,7 +35,10 @@ class Pipeline(object):
         self.rules = rules  # [StreamRule, ...]
 
     def add_event(self, event):
+        # We save the event, but only deal with the
+        # message_id during stream processing.
         message_id = event.get('message_id')
+        self.sync_engine.save_event(message_id, event)
         if not message_id:
             raise BadEvent("Event has no message_id")
 

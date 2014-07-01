@@ -20,7 +20,7 @@ import uuid
 
 import notigen
 
-from oahu import external
+from oahu import inmemory
 from oahu import stream_rules
 from oahu import trigger_callback
 from oahu import trigger_rule
@@ -38,7 +38,7 @@ class TestPipeline(unittest.TestCase):
     def test_pipeline(self):
         inactive = trigger_rule.Inactive(60)
         callback = TestCallback()
-        sync_engine = external.InMemorySyncEngine()
+        sync_engine = inmemory.InMemorySyncEngine()
         rule_id = str(uuid.uuid4())
         by_request = stream_rules.StreamRule(rule_id, sync_engine,
                                              ["request_id", ],

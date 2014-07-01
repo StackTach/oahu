@@ -13,17 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import stream as pstream
-
-
-"""There are several places we need to process the streams:
-   1. When a new event comes in.
-   2. Periodically to check for expired streams.
-   3. Periodically to process triggered streams.
-   4. Periodically to delete processed streams.
-   These last three could be dealing with potentially large sets
-   and each operation could be done by multiple workers.
-"""
 
 class StreamRule(object):
     def __init__(self, rule_id, sync, identifying_trait_names, trigger_rule,
@@ -68,7 +57,7 @@ class StreamRule(object):
         """last_event could be None if we're doing a periodic check.
         """
         if self.trigger_rule.should_trigger(stream, last_event, now=now):
-            stream.trigger()
+            stream.trigger(self.sync)
 
     def expiry_check(self, now=None):
         for stream in self.sync.get_active_streams(self.rule_id):
@@ -79,5 +68,6 @@ class StreamRule(object):
            an actual event.
         """
         for stream in self.sync.get_triggered_streams(self.rule_id):
+            stream.load_events(self.sync)
             self.trigger_callback.on_trigger(stream)
-            stream.processed()
+            stream.processed(self.sync)

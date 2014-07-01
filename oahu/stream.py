@@ -27,17 +27,20 @@ readable = {COLLECTING: "Collecting",
             PROCESSED: "Processed"}
 
 
-class WrongStateException(Exception):
-    pass
-
-
 class Stream(object):
-    def __init__(self, identifying_traits, event):
+    # ORM-like object for the Stream. Instances of this class will come
+    # and go as the sync-engine needs them.
+
+    def __init__(self, rule_id, identifying_traits, event, state=COLLECTING):
         self.message_ids = []
         self.uuid = str(uuid.uuid4())
+        self.rule_id = rule_id
         self.last_update = datetime.datetime.utcnow()
+        self.state = state
+        self.events = None
+
+        # Don't do this if we're creating from an existing stream ...
         self._extract_identifying_traits(identifying_traits, event)
-        self.state = COLLECTING
 
     def add_message(self, message_id):
         self.message_ids.append(message_id)
@@ -54,20 +57,19 @@ class Stream(object):
                 return False
         return True
 
+    def load_events(self, sync_engine):
+        self.events  = sync_engine.get_events(self.message_ids)
+
     def __str__(self):
-        return "<Stream %s: %d elements - %s>" % (self.uuid,
+        return "<Stream %s: Rule %s, %d elements - %s>" % (self.uuid,
+                                                  self.rule_id,
                                                   len(self.message_ids),
                                                   self.last_update)
-    def trigger(self):
-        if self.state != COLLECTING:
-            raise WrongStateException("Unable to move to %s state from %s" %
-                (readable['TRIGGERED'], readable[self.state]))
 
+    def trigger(self, sync_engine):
+        sync_engine.change_stream_state(self.rule_id, self.uuid, TRIGGERED)
         self.state = TRIGGERED
 
-    def processed(self):
-        if self.state != TRIGGERED:
-            raise WrongStateException("Unable to move to %s state from %s" %
-                (readable['PROCESSED'], readable[self.state]))
-
+    def processed(self, sync_engine):
+        sync_engine.change_stream_state(self.rule_id, self.uuid, PROCESSED)
         self.state = PROCESSED

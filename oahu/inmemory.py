@@ -24,11 +24,24 @@ class InMemorySyncEngine(object):
     def __init__(self):
         self.active_streams = {}  # { rule_id: { stream_id: Stream } }
 
+        # Obviously keeping all these in memory is very
+        # expensive. Only suitable for tiny tests.
+        self.raw_events = {}  # { message_id: event_dict }
+
     def lock_stream(self, stream_id):
         pass
 
     def unlock_stream(self, stream_id):
         pass
+
+    def get_events(self, message_ids):
+        return [self.raw_events[mid] for mid in message_ids]
+
+    def save_event(self, mid, event):
+        self.raw_events[mid] = event
+
+    def change_stream_state(self, rule_id, stream_id, new_state):
+        self.active_streams[rule_id][stream_id].state = new_state
 
     def get_active_streams(self, rule_id):
         return self.active_streams.get(rule_id, {}).values()
@@ -42,7 +55,7 @@ class InMemorySyncEngine(object):
         return streams
 
     def create_stream(self, rule_id, identifying_trait_names, event):
-        stream = pstream.Stream(identifying_trait_names, event)
+        stream = pstream.Stream(rule_id, identifying_trait_names, event)
         streams = self.active_streams.get(rule_id, {})
         streams[stream.uuid] = stream
         self.active_streams[rule_id] = streams
