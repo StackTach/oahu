@@ -38,13 +38,13 @@ class TestPipeline(unittest.TestCase):
     def test_pipeline(self):
         inactive = trigger_rule.Inactive(60)
         callback = TestCallback()
-        sync_engine = inmemory.InMemorySyncEngine()
         rule_id = str(uuid.uuid4())
-        by_request = stream_rules.StreamRule(rule_id, sync_engine,
+        by_request = stream_rules.StreamRule(rule_id,
                                              ["request_id", ],
                                              inactive, callback)
         rules = [by_request, ]
-        p = pipeline.Pipeline(rules, sync_engine)
+        sync_engine = inmemory.InMemorySyncEngine(rules)
+        p = pipeline.Pipeline(sync_engine)
 
         g = notigen.EventGenerator(100)
         now = datetime.datetime.utcnow()

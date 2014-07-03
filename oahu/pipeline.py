@@ -25,29 +25,12 @@ import datetime
 """
 
 
-class BadEvent(Exception):
-    pass
-
-
 class Pipeline(object):
-    def __init__(self, rules, sync_engine):
+    def __init__(self, sync_engine):
         self.sync_engine = sync_engine
-        self.rules = rules  # [StreamRule, ...]
 
     def add_event(self, event):
-        # We save the event, but only deal with the
-        # message_id during stream processing.
-        message_id = event.get('message_id')
-        self.sync_engine.save_event(message_id, event)
-        if not message_id:
-            raise BadEvent("Event has no message_id")
-
-        # An event may apply to many streams ...
-        for rule in self.rules:
-            stream = rule.get_active_stream(event)
-            if stream:
-                stream.add_message(message_id)
-                rule.should_trigger(stream, event)
+        self.sync_engine.add_event(event)
 
     # These methods are called as periodic tasks and
     # may be expensive (in that they may iterate over
@@ -55,9 +38,7 @@ class Pipeline(object):
     def do_expiry_check(self, now=None):
         if now is None:
             now = datetime.datetime.utcnow()
-
-        for rule in self.rules:
-            rule.expiry_check(now)
+        self.sync_engine.do_expiry_check(now)
 
     def purge_streams(self):
         self.sync_engine.purge_processed_streams()
@@ -68,5 +49,4 @@ class Pipeline(object):
         """
         if now is None:
             now = datetime.datetime.utcnow()
-        for rule in self.rules:
-            rule.process_triggered_streams(now)
+        self.sync_engine.process_triggered_streams(now)
