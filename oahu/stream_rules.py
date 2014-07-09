@@ -36,6 +36,10 @@ class StreamRule(object):
     def get_identifying_trait_names(self):
         return self.identifying_trait_names
 
+    def get_identifying_trait_dict(self, event):
+        return dict((trait, event[trait]) for trait in
+                                        self.identifying_trait_names)
+
     def should_trigger(self, stream, last_event, now=None):
         """last_event could be None if we're doing a periodic check.
         """

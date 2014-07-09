@@ -13,34 +13,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import abc
 import datetime
 import uuid
 
+import sync_engine
 import stream as pstream
-
-
-class SyncEngine(object):
-    __metaclass__ = abc.ABCMeta
-
-    def __init__(self, rules):
-        self.rules = rules  # [StreamRule, ...]
-
-    @abc.abstractmethod
-    def add_event(self, event):
-        pass
-
-    @abc.abstractmethod
-    def do_expiry_check(self, now=None):
-        pass
-
-    @abc.abstractmethod
-    def purge_processed_streams(self):
-        pass
-
-    @abc.abstractmethod
-    def process_triggered_streams(self, now):
-        pass
 
 
 class InMemoryStream(object):
@@ -66,7 +43,7 @@ class InMemoryStream(object):
         return True
 
 
-class InMemorySyncEngine(SyncEngine):
+class InMemorySyncEngine(sync_engine.SyncEngine):
     """All the pipeline operations that need to be externalized
        to support concurrent processing.
     """
@@ -80,40 +57,31 @@ class InMemorySyncEngine(SyncEngine):
         # expensive. Only suitable for tiny tests.
         self.raw_events = {}  # { message_id: event_dict }
 
-    def add_event(self, event):
-        # We save the event, but only deal with the
-        # message_id during stream processing.
-        message_id = event.get('message_id')
-        if not message_id:
-            raise BadEvent("Event has no message_id")
-        self._save_event(message_id, event)
+    def save_event(self, mid, event):
+        self.raw_events[mid] = event
 
-        # An event may apply to many streams ...
-        for rule in self.rules:
-            if not rule.applies(event):
-                continue
+    def append_event(self, message_id, rule, event, trait_dict):
+        stream = None
+        streams = self.active_streams.get(rule.rule_id, {})
+        for sid, s in streams.iteritems():
+            if s.do_identifying_traits_match(event):
+                stream = s
+                break
 
-            stream = None
-            streams = self.active_streams.get(rule.rule_id, {})
-            for sid, s in streams.iteritems():
-                if s.do_identifying_traits_match(event):
-                    stream = s
-                    break
+        if not stream:
+            stream = self._create_stream(rule.rule_id,
+                                         rule.get_identifying_trait_names(),
+                                         event)
 
-            if not stream:
-                stream = self._create_stream(rule.rule_id,
-                                             rule.get_identifying_trait_names(),
-                                             event)
-
-            stream.messages.append(message_id)
-            now = datetime.datetime.utcnow()
-            stream.last_update = now
-            self._check_for_trigger(rule, stream, event, now)
+        stream.messages.append(message_id)
+        now = datetime.datetime.utcnow()
+        stream.last_update = now
+        self._check_for_trigger(rule, stream, event=event, now=now)
 
     def do_expiry_check(self, now=None):
         for rule in self.rules:
             for sid, stream in self.active_streams[rule.rule_id].iteritems():
-                self._check_for_trigger(rule, stream, None, now)
+                self._check_for_trigger(rule, stream, now=now)
 
     def purge_processed_streams(self):
         togo = []
@@ -134,17 +102,11 @@ class InMemorySyncEngine(SyncEngine):
                 rule.trigger_callback.on_trigger(stream)
                 self._processed(rule.rule_id, s)
 
-    def _check_for_trigger(self, rule, stream, event, now):
-        if stream.state != pstream.COLLECTING:
-            return
-        if rule.should_trigger(stream, event, now=now):
-            self._trigger(rule.rule_id, stream)
+    def trigger(self, rule_id, stream):
+        self._change_stream_state(rule_id, stream.sid, pstream.TRIGGERED)
 
     def _get_events(self, message_ids):
         return [self.raw_events[mid] for mid in message_ids]
-
-    def _save_event(self, mid, event):
-        self.raw_events[mid] = event
 
     def _get_triggered_streams(self, rule_id):
         streams = []
@@ -163,8 +125,11 @@ class InMemorySyncEngine(SyncEngine):
     def _change_stream_state(self, rule_id, stream_id, new_state):
         self.active_streams[rule_id][stream_id].state = new_state
 
-    def _trigger(self, rule_id, stream):
-        self._change_stream_state(rule_id, stream.sid, pstream.TRIGGERED)
-
     def _processed(self, rule_id, stream):
         self._change_stream_state(rule_id, stream.sid, pstream.PROCESSED)
+
+    def get_num_active_streams(self, rule_id):
+        return len(self.active_streamd[rule_id])
+
+    def flush_all(self):
+        pass

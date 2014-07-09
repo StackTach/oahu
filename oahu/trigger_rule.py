@@ -13,10 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import abc
 import datetime
 
 
 class TriggerRule(object):
+    __metaclass__ = abc.ABCMeta
+
+    @abc.abstractmethod
     def should_trigger(self, stream, last_event, now=None):
         return False
 

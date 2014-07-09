@@ -21,6 +21,7 @@ import uuid
 import notigen
 
 from oahu import inmemory
+from oahu import mongodb_sync_engine
 from oahu import stream_rules
 from oahu import trigger_callback
 from oahu import trigger_rule
@@ -43,8 +44,12 @@ class TestPipeline(unittest.TestCase):
                                              ["request_id", ],
                                              inactive, callback)
         rules = [by_request, ]
-        sync_engine = inmemory.InMemorySyncEngine(rules)
+        #sync_engine = inmemory.InMemorySyncEngine(rules)
+        sync_engine = mongodb_sync_engine.MongoDBSyncEngine(rules)
         p = pipeline.Pipeline(sync_engine)
+
+        sync_engine.flush_all()
+        self.assertEqual(0, sync_engine.get_num_active_streams(rule_id))
 
         g = notigen.EventGenerator(100)
         now = datetime.datetime.utcnow()
@@ -59,11 +64,11 @@ class TestPipeline(unittest.TestCase):
                 nevents += len(events)
             now = g.move_to_next_tick(now)
 
-        self.assertTrue(len(sync_engine.active_streams[rule_id]) > 0)
+        self.assertTrue(sync_engine.get_num_active_streams(rule_id) > 0)
         now += datetime.timedelta(seconds=2)
         p.do_expiry_check(now)
         p.process_triggered_streams(now)
         p.purge_streams()
-        self.assertEqual(0, len(sync_engine.active_streams[rule_id]))
+        self.assertEqual(0, sync_engine.get_num_active_streams(rule_id))
         self.assertEqual(len(unique), callback.triggered)
         # TODO(sandy): match unique request_ids
