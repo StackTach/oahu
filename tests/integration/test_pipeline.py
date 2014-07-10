@@ -93,6 +93,9 @@ class TestPipeline(unittest.TestCase):
 
         return (rules, callback, rule_id)
 
+    # TODO(sandy): The drivers for these tests will come from a configuration
+    # and simport'ed.
+
     def test_inmemory(self):
         rules, callback, rule_id = self._get_rules()
         sync_engine = inmemory.InMemorySyncEngine(rules)
