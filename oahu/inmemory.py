@@ -50,12 +50,7 @@ class InMemorySyncEngine(sync_engine.SyncEngine):
 
     def __init__(self, rules):
         super(InMemorySyncEngine, self).__init__(rules)
-
-        self.active_streams = {}  # { rule_id: { stream_id: InMemoryStream } }
-
-        # Obviously keeping all these in memory is very
-        # expensive. Only suitable for tiny tests.
-        self.raw_events = {}  # { message_id: event_dict }
+        self.flush_all()
 
     def save_event(self, mid, event):
         self.raw_events[mid] = event
@@ -105,6 +100,16 @@ class InMemorySyncEngine(sync_engine.SyncEngine):
     def trigger(self, rule_id, stream):
         self._change_stream_state(rule_id, stream.sid, pstream.TRIGGERED)
 
+    def get_num_active_streams(self, rule_id):
+        return len(self.active_streams.get(rule_id, {}))
+
+    def flush_all(self):
+        self.active_streams = {}  # { rule_id: { stream_id: InMemoryStream } }
+
+        # Obviously keeping all these in memory is very
+        # expensive. Only suitable for tiny tests.
+        self.raw_events = {}  # { message_id: event_dict }
+
     def _get_events(self, message_ids):
         return [self.raw_events[mid] for mid in message_ids]
 
@@ -127,9 +132,3 @@ class InMemorySyncEngine(sync_engine.SyncEngine):
 
     def _processed(self, rule_id, stream):
         self._change_stream_state(rule_id, stream.sid, pstream.PROCESSED)
-
-    def get_num_active_streams(self, rule_id):
-        return len(self.active_streamd[rule_id])
-
-    def flush_all(self):
-        pass

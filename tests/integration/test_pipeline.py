@@ -28,28 +28,36 @@ from oahu import trigger_rule
 from oahu import pipeline
 
 
+class OutOfOrderException(Exception):
+    pass
+
+
 class TestCallback(object):
-    triggered = 0
+    def __init__(self):
+        self.triggered = 0
+        self.streams = {}
+        self.request_set = set()
 
     def on_trigger(self, stream):
         self.triggered += 1
+        self.streams[stream.uuid] = stream
+        self.request_set.add(stream.events[0]['request_id'])
+
+        last = None
+        for event in stream.events:
+            if last != None:
+                if last['when'] > event['when']:
+                    raise OutOfOrderException("%s > %s" %
+                                            (last['when'], event['when']))
+            last = event
 
 
 class TestPipeline(unittest.TestCase):
-    def test_pipeline(self):
-        inactive = trigger_rule.Inactive(60)
-        callback = TestCallback()
-        rule_id = str(uuid.uuid4())
-        by_request = stream_rules.StreamRule(rule_id,
-                                             ["request_id", ],
-                                             inactive, callback)
-        rules = [by_request, ]
-        #sync_engine = inmemory.InMemorySyncEngine(rules)
-        sync_engine = mongodb_sync_engine.MongoDBSyncEngine(rules)
-        p = pipeline.Pipeline(sync_engine)
+    def _pipeline(self, driver, rule_id, callback):
+        p = pipeline.Pipeline(driver)
 
-        sync_engine.flush_all()
-        self.assertEqual(0, sync_engine.get_num_active_streams(rule_id))
+        driver.flush_all()
+        self.assertEqual(0, driver.get_num_active_streams(rule_id))
 
         g = notigen.EventGenerator(100)
         now = datetime.datetime.utcnow()
@@ -64,11 +72,33 @@ class TestPipeline(unittest.TestCase):
                 nevents += len(events)
             now = g.move_to_next_tick(now)
 
-        self.assertTrue(sync_engine.get_num_active_streams(rule_id) > 0)
+        self.assertTrue(driver.get_num_active_streams(rule_id) > 0)
         now += datetime.timedelta(seconds=2)
         p.do_expiry_check(now)
         p.process_triggered_streams(now)
         p.purge_streams()
-        self.assertEqual(0, sync_engine.get_num_active_streams(rule_id))
+        self.assertEqual(0, driver.get_num_active_streams(rule_id))
         self.assertEqual(len(unique), callback.triggered)
-        # TODO(sandy): match unique request_ids
+        self.assertEqual(len(unique), len(callback.streams))
+        self.assertEqual(unique, callback.request_set)
+
+    def _get_rules(self):
+        inactive = trigger_rule.Inactive(60)
+        callback = TestCallback()
+        rule_id = str(uuid.uuid4())
+        by_request = stream_rules.StreamRule(rule_id,
+                                             ["request_id", ],
+                                             inactive, callback)
+        rules = [by_request, ]
+
+        return (rules, callback, rule_id)
+
+    def test_inmemory(self):
+        rules, callback, rule_id = self._get_rules()
+        sync_engine = inmemory.InMemorySyncEngine(rules)
+        self._pipeline(sync_engine, rule_id, callback)
+
+    def test_mongo(self):
+        rules, callback, rule_id = self._get_rules()
+        sync_engine = mongodb_sync_engine.MongoDBSyncEngine(rules)
+        self._pipeline(sync_engine, rule_id, callback)

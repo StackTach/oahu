@@ -59,6 +59,7 @@ class MongoDBSyncEngine(sync_engine.SyncEngine):
 
         self.streams = self.db['streams']
         self.streams.ensure_index('stream_id')
+        self.streams.ensure_index('when')
 
     def save_event(self, message_id, event):
         self.events.insert(event)
@@ -89,6 +90,7 @@ class MongoDBSyncEngine(sync_engine.SyncEngine):
 
         # Add this message_id to the stream collection ...
         entry = {'stream_id': stream_id,
+                 'when': event['when'],
                  'message_id': message_id}
         self.streams.insert(entry)
 
@@ -121,9 +123,10 @@ class MongoDBSyncEngine(sync_engine.SyncEngine):
                                     doc['last_update'])
 
             events = []
-            for mdoc in self.streams.find({'stream_id': stream_id}):
+            for mdoc in self.streams.find({'stream_id': stream_id}) \
+                                    .sort('when', pymongo.ASCENDING):
                 events.append(self.events.find(
-                                            {'message_id': mdoc['message_id']}))
+                                        {'message_id': mdoc['message_id']})[0])
 
             stream.set_events(events)
             rule = self.rules_dict[doc['rule_id']]
