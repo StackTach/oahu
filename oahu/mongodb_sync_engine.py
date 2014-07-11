@@ -28,6 +28,7 @@ import stream as pstream
 # ["rules"] = { 'rule_id',
 #               'stream_id',
 #               'identifying_traits': {trait: value, ...},
+#               'last_update',
 #               'state',
 #             } where xxx = rule_id
 #
@@ -101,20 +102,25 @@ class MongoDBSyncEngine(sync_engine.SyncEngine):
     def do_expiry_check(self, now=None):
         # TODO(sandy) - we need to get the expiry time as part of the
         #               stream document so the search is optimal.
+        num = 0
         for doc in self.rule_collection.find({'state': pstream.COLLECTING}):
-            rule = self.rules_dict[doc['rule_id']]
+            rule_id = doc['rule_id']
+            rule = self.rules_dict[rule_id]
+            num += 1
 
             stream = pstream.Stream(doc['stream_id'],
-                                    doc['rule_id'],
+                                    rule_id,
                                     doc['state'],
                                     doc['last_update'])
             self._check_for_trigger(rule, stream, now=now)
-
+        print "checked", num
 
     def purge_processed_streams(self):
-        self.rule_collection.remove(state=pstream.PROCESSED)
+        print "purged", self.rule_collection.remove(
+                                    {'state': pstream.PROCESSED})['n']
 
     def process_triggered_streams(self, now):
+        num = 0
         for doc in self.rule_collection.find({'state': pstream.TRIGGERED}):
             stream_id = doc['stream_id']
             stream = pstream.Stream(stream_id,
@@ -122,17 +128,19 @@ class MongoDBSyncEngine(sync_engine.SyncEngine):
                                     doc['state'],
                                     doc['last_update'])
 
+            num += 1
             events = []
             for mdoc in self.streams.find({'stream_id': stream_id}) \
                                     .sort('when', pymongo.ASCENDING):
                 events.append(self.events.find(
-                                        {'message_id': mdoc['message_id']})[0])
+                                    {'message_id': mdoc['message_id']})[0])
 
             stream.set_events(events)
             rule = self.rules_dict[doc['rule_id']]
             rule.trigger_callback.on_trigger(stream)
             self.rule_collection.update({'stream_id': stream_id},
                                     {'$set': {'state': pstream.PROCESSED}})
+        print "processed", num
 
     def trigger(self, rule_id, stream):
         self.rule_collection.update({'stream_id': stream.uuid},

@@ -89,6 +89,7 @@ class SyncEngine(object):
         # has a .state attribute and whatever is needed by the
         # rule object.
         if stream.state != pstream.COLLECTING:
+            print "BAILING"
             return
         if rule.should_trigger(stream, event, now=now):
             self.trigger(rule.rule_id, stream)
