@@ -31,6 +31,8 @@ class Inactive(TriggerRule):
         self.expiry_in_seconds = expiry_in_seconds
 
     def should_trigger(self, stream, last_event, now=None):
+        secs = (now - stream.last_update).seconds
+        #print "Stream %s = %d seconds (%d)" % (stream.uuid, secs, self.expiry_in_seconds)
         if now is None:
             now = datetime.datetime.utcnow()
         return (now - stream.last_update).seconds > self.expiry_in_seconds

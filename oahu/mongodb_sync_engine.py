@@ -84,6 +84,7 @@ class MongoDBSyncEngine(sync_engine.SyncEngine):
                       'rule_id': rule.rule_id,
                       'last_update': now,
                       'identifying_traits': trait_dict,
+                      'state_version': 1,
                       'state': pstream.COLLECTING,
                      }
             update_time = False
@@ -103,7 +104,10 @@ class MongoDBSyncEngine(sync_engine.SyncEngine):
         # TODO(sandy) - we need to get the expiry time as part of the
         #               stream document so the search is optimal.
         num = 0
-        for doc in self.rule_collection.find({'state': pstream.COLLECTING}):
+        ready = 0
+        for doc in self.rule_collection.find(
+                                {'state': pstream.COLLECTING}
+                            ).limit(1000).sort([('last_update', pymongo.ASCENDING)]):
             rule_id = doc['rule_id']
             rule = self.rules_dict[rule_id]
             num += 1
@@ -112,39 +116,56 @@ class MongoDBSyncEngine(sync_engine.SyncEngine):
                                     rule_id,
                                     doc['state'],
                                     doc['last_update'])
-            self._check_for_trigger(rule, stream, now=now)
-        print "checked", num
+            if self._check_for_trigger(rule, stream, now=now):
+                ready += 1
+        print "%s - checked %d (%d ready)" % (now, num, ready)
 
     def purge_processed_streams(self):
-        print "purged", self.rule_collection.remove(
-                                    {'state': pstream.PROCESSED})['n']
+        now = datetime.datetime.utcnow()
+        print "%s - purged %d" % (now,
+            self.rule_collection.remove({'state': pstream.PROCESSED})['n'])
 
-    def process_triggered_streams(self, now):
+    def process_ready_streams(self, now):
+        chunk_size = 100
         num = 0
-        for doc in self.rule_collection.find({'state': pstream.TRIGGERED}):
-            stream_id = doc['stream_id']
+        locked = 0
+        for ready in self.rule_collection.find({'state': pstream.READY}).limit(chunk_size):
+            result = self.rule_collection.update({'_id': ready['_id'],
+                                                  'state_version': ready['state_version']},
+                                                 {'$set': {'state': pstream.TRIGGERED},
+                                                  '$inc': {'state_version': 1}},
+                                                  safe=True)
+            if result['n'] == 0:
+                locked += 1
+                continue  # Someone else got it first, move to next one.
+
+            stream_id = ready['stream_id']
             stream = pstream.Stream(stream_id,
-                                    doc['rule_id'],
-                                    doc['state'],
-                                    doc['last_update'])
+                                    ready['rule_id'],
+                                    ready['state'],
+                                    ready['last_update'])
 
             num += 1
             events = []
             for mdoc in self.streams.find({'stream_id': stream_id}) \
                                     .sort('when', pymongo.ASCENDING):
-                events.append(self.events.find(
-                                    {'message_id': mdoc['message_id']})[0])
+                for e in self.events.find({'message_id': mdoc['message_id']}):
+                    events.append(e)
 
             stream.set_events(events)
-            rule = self.rules_dict[doc['rule_id']]
+            rule = self.rules_dict[ready['rule_id']]
             rule.trigger_callback.on_trigger(stream)
             self.rule_collection.update({'stream_id': stream_id},
                                     {'$set': {'state': pstream.PROCESSED}})
-        print "processed", num
+        print "%s - processed %d/%d (%d locked)" % (now, num, chunk_size, locked)
 
     def trigger(self, rule_id, stream):
         self.rule_collection.update({'stream_id': stream.uuid},
                                     {'$set': {'state': pstream.TRIGGERED}})
+
+    def ready(self, rule_id, stream):
+        self.rule_collection.update({'stream_id': stream.uuid},
+                                    {'$set': {'state': pstream.READY}})
 
     def get_num_active_streams(self, rule_id):
         return self.rule_collection.find({'rule_id': rule_id}).count()

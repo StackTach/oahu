@@ -60,7 +60,11 @@ class SyncEngine(object):
         pass
 
     @abc.abstractmethod
-    def process_triggered_streams(self, now):
+    def process_ready_streams(self, now):
+        pass
+
+    @abc.abstractmethod
+    def ready(self, rule_id, stream):
         pass
 
     @abc.abstractmethod
@@ -89,7 +93,8 @@ class SyncEngine(object):
         # has a .state attribute and whatever is needed by the
         # rule object.
         if stream.state != pstream.COLLECTING:
-            print "BAILING"
-            return
+            return False
         if rule.should_trigger(stream, event, now=now):
-            self.trigger(rule.rule_id, stream)
+            self.ready(rule.rule_id, stream)
+            return True
+        return False

@@ -15,10 +15,12 @@
 
 
 COLLECTING = 1
-TRIGGERED = 2
-PROCESSED = 3
+READY = 2
+TRIGGERED = 3
+PROCESSED = 4
 
 readable = {COLLECTING: "Collecting",
+            READY: "Ready",
             TRIGGERED: "Triggered",
             PROCESSED: "Processed"}
 
@@ -41,6 +43,6 @@ class Stream(object):
         self.events = events
 
     def __str__(self):
-        return "<Stream %s: Rule %s - %s>" % (self.uuid,
+        return "<Stream %s: Rule '%s' - %s>" % (self.uuid,
                                               self.rule_id,
                                               readable[self.state])

@@ -88,14 +88,17 @@ class InMemorySyncEngine(sync_engine.SyncEngine):
         for rid, sid in togo:
             del self.active_streams[rid][sid]
 
-    def process_triggered_streams(self, now):
+    def process_ready_streams(self, now):
         for rule in self.rules:
-            for s in self._get_triggered_streams(rule.rule_id):
+            for s in self._get_ready_streams(rule.rule_id):
                 stream = pstream.Stream(s.sid, rule.rule_id,
                                         s.state, s.last_update)
                 stream.set_events(self._get_events(s.messages))
                 rule.trigger_callback.on_trigger(stream)
                 self._processed(rule.rule_id, s)
+
+    def ready(self, rule_id, stream):
+        self._change_stream_state(rule_id, stream.sid, pstream.READY)
 
     def trigger(self, rule_id, stream):
         self._change_stream_state(rule_id, stream.sid, pstream.TRIGGERED)
@@ -113,10 +116,10 @@ class InMemorySyncEngine(sync_engine.SyncEngine):
     def _get_events(self, message_ids):
         return [self.raw_events[mid] for mid in message_ids]
 
-    def _get_triggered_streams(self, rule_id):
+    def _get_ready_streams(self, rule_id):
         streams = []
         for sid, stream in self.active_streams[rule_id].iteritems():
-            if stream.state == pstream.TRIGGERED:
+            if stream.state == pstream.READY:
                 streams.append(stream)
         return streams
 

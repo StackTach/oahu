@@ -30,7 +30,8 @@ from oahu import trigger_rule
 class Callback(object):
     def on_trigger(self, stream):
         print "Got: ", stream
-        print stream.events
+        for event in stream.events:
+            print event['event_type'], event['when']
 
 
 LOG = yagi.log.logger
@@ -68,15 +69,7 @@ class OahuHandler(yagi.handler.BaseHandler):
             self.processed += 1
 
         now = datetime.datetime.utcnow()
-        if (now - self.last).seconds > 30:
+        if (now - self.last).seconds > 10:
             self.last = now
-            print "Added %d events" % self.processed
+            print "Added %d events at %s" % (self.processed, now)
             self.processed = 0
-
-        # TODO(sandy): This should be called from an external process.
-        # Hack Hack Hack ...
-        now = datetime.datetime.utcnow()
-        self.pipeline.do_expiry_check(now)
-        self.pipeline.process_triggered_streams(now)
-        self.pipeline.purge_streams()
-

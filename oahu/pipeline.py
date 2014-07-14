@@ -43,10 +43,10 @@ class Pipeline(object):
     def purge_streams(self):
         self.sync_engine.purge_processed_streams()
 
-    def process_triggered_streams(self, now=None):
-        """If the stream is triggered we need to process the
-           pipeline.
+    def process_ready_streams(self, now=None):
+        """If the stream is ready we need to trigger it and
+           process the pipeline.
         """
         if now is None:
             now = datetime.datetime.utcnow()
-        self.sync_engine.process_triggered_streams(now)
+        self.sync_engine.process_ready_streams(now)

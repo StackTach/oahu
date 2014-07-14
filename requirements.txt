@@ -1,3 +1,4 @@
 notification_utils
+python-daemon
 simport >= 0.0.dev0
 pymongo
