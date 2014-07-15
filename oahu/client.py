@@ -16,7 +16,7 @@
 """Pipeline - periodic pipeline processing for StackTach.v3
 
 Usage:
-  pipeline (expired|ready|completed) [--daemon] [--polling_rate=<rate>]
+  pipeline (expired|ready|completed) <config_simport> [--daemon] [--polling_rate=<rate>]
   pipeline (-h | --help)
   pipeline --version
 
@@ -26,6 +26,7 @@ Options:
   --debug                Debug mode
   --daemon               Run as daemon
   --polling_rate=<rate>  Rate in seconds [default: 300]
+  <config_simport>       Config class location in Simport format
 
 """
 import datetime
@@ -34,6 +35,7 @@ import time
 import daemon
 from docopt import docopt
 
+from oahu import config
 from oahu import mongodb_sync_engine as driver
 from oahu import pipeline
 from oahu import stream_rules
@@ -41,25 +43,9 @@ from oahu import trigger_callback
 from oahu import trigger_rule
 
 
-class Callback(object):
-    def on_trigger(self, stream):
-        print "Processing", stream
-
-
-def run(poll, expired, ready, completed):
+def run(poll, expired, ready, completed, sync_engine):
     print "Polling rate:", poll
 
-    # TODO(sandy) - This is a copy-paste from the yagi handler.
-    # Really need the config file parser for these rules/pipelines, etc.
-    inactive = trigger_rule.Inactive(60)
-    rule_id = "request-id"  # Has to be consistent across yagi workers.
-    callback = Callback()
-    by_request = stream_rules.StreamRule(rule_id,
-                                         ["request_id", ],
-                                         inactive, callback)
-    rules = [by_request, ]
-
-    sync_engine = driver.MongoDBSyncEngine(rules)
     p = pipeline.Pipeline(sync_engine)
 
     while True:
@@ -82,11 +68,15 @@ def main():
     completed = arguments["completed"]
     poll = float(arguments['--polling_rate'])
 
+    sync_engine_location = arguments['<config_simport>']
+    conf = config.get_config(sync_engine_location)
+    sync_engine = conf.get_sync_engine()
+
     if arguments['--daemon']:
         with daemon.DaemonContext():
-            run(poll, expired, ready, completed)
+            run(poll, expired, ready, completed, sync_engine)
     else:
-        run(poll, expired, ready, completed)
+        run(poll, expired, ready, completed, sync_engine)
 
 
 if __name__ == '__main__':

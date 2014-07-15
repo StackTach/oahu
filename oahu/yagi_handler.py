@@ -20,6 +20,7 @@ import yagi.handler
 import yagi.log
 import yagi.utils
 
+import oahu.config
 from oahu import mongodb_sync_engine as driver
 from oahu import pipeline
 from oahu import stream_rules
@@ -46,15 +47,10 @@ class OahuHandler(yagi.handler.BaseHandler):
         # Don't use interpolation from ConfigParser ...
         self.config = dict(yagi.config.config.items('oahu', raw=True))
 
-        inactive = trigger_rule.Inactive(60)
-        self.callback = Callback()
-        rule_id = "request-id"  # Has to be consistent across yagi workers.
-        by_request = stream_rules.StreamRule(rule_id,
-                                             ["request_id", ],
-                                             inactive, self.callback)
-        self.rules = [by_request, ]
-
-        self.sync_engine = driver.MongoDBSyncEngine(self.rules)
+        config_simport_location = self.config['config_class']
+        self.oahu_config = oahu.config.get_config(config_simport_location)
+        self.sync_engine = self.oahu_config.get_sync_engine(
+                                                        callback=Callback())
         self.pipeline = pipeline.Pipeline(self.sync_engine)
 
         # TODO(sandy) - wipe the database everytime for now
