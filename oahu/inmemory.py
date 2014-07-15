@@ -73,12 +73,12 @@ class InMemorySyncEngine(sync_engine.SyncEngine):
         stream.last_update = now
         self._check_for_trigger(rule, stream, event=event, now=now)
 
-    def do_expiry_check(self, now=None):
+    def do_expiry_check(self, now=None, chunk=-1):
         for rule in self.rules:
             for sid, stream in self.active_streams[rule.rule_id].iteritems():
                 self._check_for_trigger(rule, stream, now=now)
 
-    def purge_processed_streams(self):
+    def purge_processed_streams(self, chunk=-1):
         togo = []
         for rid, stream_map in self.active_streams.iteritems():
             for sid, stream in stream_map.iteritems():
@@ -88,7 +88,7 @@ class InMemorySyncEngine(sync_engine.SyncEngine):
         for rid, sid in togo:
             del self.active_streams[rid][sid]
 
-    def process_ready_streams(self, now):
+    def process_ready_streams(self, now, chunk=-1):
         for rule in self.rules:
             for s in self._get_ready_streams(rule.rule_id):
                 stream = pstream.Stream(s.sid, rule.rule_id,

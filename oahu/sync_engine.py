@@ -52,15 +52,15 @@ class SyncEngine(object):
         pass
 
     @abc.abstractmethod
-    def do_expiry_check(self, now=None):
+    def do_expiry_check(self, now=None, chunk=-1):
         pass
 
     @abc.abstractmethod
-    def purge_processed_streams(self):
+    def purge_processed_streams(self, chunk=-1):
         pass
 
     @abc.abstractmethod
-    def process_ready_streams(self, now):
+    def process_ready_streams(self, now, chunk=-1):
         pass
 
     @abc.abstractmethod

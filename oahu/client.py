@@ -43,19 +43,20 @@ from oahu import trigger_callback
 from oahu import trigger_rule
 
 
-def run(poll, expired, ready, completed, sync_engine):
+def run(poll, expired, ready, completed, conf):
     print "Polling rate:", poll
 
+    sync_engine = conf.get_sync_engine()
     p = pipeline.Pipeline(sync_engine)
 
     while True:
         now = datetime.datetime.utcnow()
         if expired:
-            p.do_expiry_check(now)
+            p.do_expiry_check(now, chunk=conf.get_expiry_chunk_size())
         if ready:
-            p.process_ready_streams(now)
+            p.process_ready_streams(now, chunk=conf.get_ready_chunk_size())
         if completed:
-            p.purge_streams()
+            p.purge_streams(chunk=conf.get_completed_chunk_size())
 
         time.sleep(poll)
 
@@ -70,13 +71,12 @@ def main():
 
     sync_engine_location = arguments['<config_simport>']
     conf = config.get_config(sync_engine_location)
-    sync_engine = conf.get_sync_engine()
 
     if arguments['--daemon']:
         with daemon.DaemonContext():
-            run(poll, expired, ready, completed, sync_engine)
+            run(poll, expired, ready, completed, conf)
     else:
-        run(poll, expired, ready, completed, sync_engine)
+        run(poll, expired, ready, completed, conf)
 
 
 if __name__ == '__main__':

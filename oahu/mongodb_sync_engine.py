@@ -100,14 +100,17 @@ class MongoDBSyncEngine(sync_engine.SyncEngine):
             self.rule_collection.update({'stream_id': stream_id},
                                         {'$set': {'last_update': now}})
 
-    def do_expiry_check(self, now=None):
+    def do_expiry_check(self, now=None, chunk=-1):
         # TODO(sandy) - we need to get the expiry time as part of the
         #               stream document so the search is optimal.
         num = 0
         ready = 0
-        for doc in self.rule_collection.find(
-                                {'state': pstream.COLLECTING}
-                            ).limit(1000).sort([('last_update', pymongo.ASCENDING)]):
+
+        query = self.rule_collection.find({'state': pstream.COLLECTING}).sort(
+                                [('last_update', pymongo.ASCENDING)])
+        if chunk > 0:
+            query = query.limit(chunk)
+        for doc in query:
             rule_id = doc['rule_id']
             rule = self.rules_dict[rule_id]
             num += 1
@@ -120,16 +123,18 @@ class MongoDBSyncEngine(sync_engine.SyncEngine):
                 ready += 1
         print "%s - checked %d (%d ready)" % (now, num, ready)
 
-    def purge_processed_streams(self):
+    def purge_processed_streams(self, chunk=-1):
         now = datetime.datetime.utcnow()
         print "%s - purged %d" % (now,
             self.rule_collection.remove({'state': pstream.PROCESSED})['n'])
 
-    def process_ready_streams(self, now):
-        chunk_size = 100
+    def process_ready_streams(self, now, chunk=-1):
         num = 0
         locked = 0
-        for ready in self.rule_collection.find({'state': pstream.READY}).limit(chunk_size):
+        query = self.rule_collection.find({'state': pstream.READY})
+        if chunk > 0:
+            query = query.limit(chunk)
+        for ready in query:
             result = self.rule_collection.update({'_id': ready['_id'],
                                                   'state_version': ready['state_version']},
                                                  {'$set': {'state': pstream.TRIGGERED},
@@ -157,7 +162,7 @@ class MongoDBSyncEngine(sync_engine.SyncEngine):
             rule.trigger_callback.on_trigger(stream)
             self.rule_collection.update({'stream_id': stream_id},
                                     {'$set': {'state': pstream.PROCESSED}})
-        print "%s - processed %d/%d (%d locked)" % (now, num, chunk_size, locked)
+        print "%s - processed %d/%d (%d locked)" % (now, num, chunk, locked)
 
     def trigger(self, rule_id, stream):
         self.rule_collection.update({'stream_id': stream.uuid},

@@ -35,18 +35,18 @@ class Pipeline(object):
     # These methods are called as periodic tasks and
     # may be expensive (in that they may iterate over
     # all streams).
-    def do_expiry_check(self, now=None):
+    def do_expiry_check(self, now=None, chunk=-1):
         if now is None:
             now = datetime.datetime.utcnow()
-        self.sync_engine.do_expiry_check(now)
+        self.sync_engine.do_expiry_check(now, chunk=chunk)
 
-    def purge_streams(self):
-        self.sync_engine.purge_processed_streams()
+    def purge_streams(self, chunk=-1):
+        self.sync_engine.purge_processed_streams(chunk=chunk)
 
-    def process_ready_streams(self, now=None):
+    def process_ready_streams(self, now=None, chunk=-1):
         """If the stream is ready we need to trigger it and
            process the pipeline.
         """
         if now is None:
             now = datetime.datetime.utcnow()
-        self.sync_engine.process_ready_streams(now)
+        self.sync_engine.process_ready_streams(now, chunk=chunk)

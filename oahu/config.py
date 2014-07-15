@@ -28,6 +28,15 @@ class Config(object):
     def get_sync_engine(self, callback=None):
         pass
 
+    def get_ready_chunk_size(self):
+        return -1
+
+    def get_expiry_chunk_size(self):
+        return -1
+
+    def get_completed_chunk_size(self):
+        return -1
+
 
 def get_config(sync_engine_location):
     config_class = simport.load(sync_engine_location)

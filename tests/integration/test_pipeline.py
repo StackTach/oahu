@@ -74,8 +74,10 @@ class TestPipeline(unittest.TestCase):
 
         self.assertTrue(driver.get_num_active_streams(rule_id) > 0)
         now += datetime.timedelta(seconds=2)
+
+        # no chunk size specified = all at once.
         p.do_expiry_check(now)
-        p.process_triggered_streams(now)
+        p.process_ready_streams(now)
         p.purge_streams()
         self.assertEqual(0, driver.get_num_active_streams(rule_id))
         self.assertEqual(len(unique), callback.triggered)
