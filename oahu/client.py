@@ -38,9 +38,6 @@ from docopt import docopt
 from oahu import config
 from oahu import mongodb_driver as driver
 from oahu import pipeline
-from oahu import trigger_definitions
-from oahu import pipeline_callback
-from oahu import criteria
 
 
 def run(poll, expired, ready, completed, conf):

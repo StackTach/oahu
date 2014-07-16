@@ -21,14 +21,12 @@ import yagi.log
 import yagi.utils
 
 import oahu.config
-from oahu import mongodb_sync_engine as driver
+from oahu import mongodb_driver as driver
 from oahu import pipeline
-from oahu import stream_rules
-from oahu import trigger_callback
-from oahu import trigger_rule
+from oahu import pipeline_callback
 
 
-class Callback(object):
+class Callback(pipeline_callback.PipelineCallback):
     def on_trigger(self, stream):
         print "Got: ", stream
         for event in stream.events:
@@ -49,12 +47,11 @@ class OahuHandler(yagi.handler.BaseHandler):
 
         config_simport_location = self.config['config_class']
         self.oahu_config = oahu.config.get_config(config_simport_location)
-        self.sync_engine = self.oahu_config.get_sync_engine(
-                                                        callback=Callback())
-        self.pipeline = pipeline.Pipeline(self.sync_engine)
+        self.driver = self.oahu_config.get_driver(callback=Callback())
+        self.pipeline = pipeline.Pipeline(self.driver)
 
         # TODO(sandy) - wipe the database everytime for now
-        self.sync_engine.flush_all()
+        self.driver.flush_all()
 
         self.last = datetime.datetime.utcnow()
         self.processed = 0
