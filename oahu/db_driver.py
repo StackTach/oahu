@@ -22,33 +22,35 @@ class BadEvent(Exception):
     pass
 
 
-class SyncEngine(object):
+class DBDriver(object):
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, rules):
-        self.rules_dict = {}
-        self.rules = rules  # [StreamRule, ...]
-        for rule in rules:
-            self.rules_dict[rule.rule_id] = rule
+    def __init__(self, trigger_defs):
+        self.trigger_defs = trigger_defs  # [TriggerDefinitions, ...]
+
+        # {trigger.name: TriggerDefinition} ... for lookups.
+        self.trigger_defs_dict = {}
+        for trigger in trigger_defs:
+            self.trigger_defs_dict[trigger.name] = trigger
 
     def add_event(self, event):
         message_id = self._get_message_id(event)
         self.save_event(message_id, event)
 
         # An event may apply to many streams ...
-        for rule in self.rules:
-            if not rule.applies(event):
+        for trigger in self.trigger_defs:
+            if not trigger.applies(event):
                 continue
 
-            trait_dict = rule.get_identifying_trait_dict(event)
-            self.append_event(message_id, rule, event, trait_dict)
+            trait_dict = trigger.get_identifying_trait_dict(event)
+            self.append_event(message_id, trigger, event, trait_dict)
 
     @abc.abstractmethod
     def save_event(self, message_id, event):
         pass
 
     @abc.abstractmethod
-    def append_event(self, message_id, rule, event):
+    def append_event(self, message_id, trigger, event):
         pass
 
     @abc.abstractmethod
@@ -64,15 +66,15 @@ class SyncEngine(object):
         pass
 
     @abc.abstractmethod
-    def ready(self, rule_id, stream):
+    def ready(self, trigger_name, stream):
         pass
 
     @abc.abstractmethod
-    def trigger(self, rule_id, stream):
+    def trigger(self, trigger_name, stream):
         pass
 
     @abc.abstractmethod
-    def get_num_active_streams(self, rule_id):
+    def get_num_active_streams(self, trigger_name):
         pass
 
     @abc.abstractmethod
@@ -88,13 +90,13 @@ class SyncEngine(object):
 
         return message_id
 
-    def _check_for_trigger(self, rule, stream, event=None, now=None):
+    def _check_for_trigger(self, trigger, stream, event=None, now=None):
         # Duck-typing assumed on the stream object. So long as it
         # has a .state attribute and whatever is needed by the
         # rule object.
         if stream.state != pstream.COLLECTING:
             return False
-        if rule.should_trigger(stream, event, now=now):
-            self.ready(rule.rule_id, stream)
+        if trigger.should_fire(stream, event, now=now):
+            self.ready(trigger.name, stream)
             return True
         return False

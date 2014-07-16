@@ -27,14 +27,14 @@ readable = {COLLECTING: "Collecting",
 
 class Stream(object):
     # ORM-like object for the Stream. Instances of this class will come
-    # and go as the sync-engine needs them.
+    # and go as the DBDriver needs them.
     #
     # So ... keep any important state change operations out of here.
     # It's likely the state will change via another worker.
 
-    def __init__(self, uuid, rule_id, state, last_update):
+    def __init__(self, uuid, trigger_name, state, last_update):
         self.uuid = uuid
-        self.rule_id = rule_id
+        self.trigger_name = trigger_name
         self.last_update = last_update
         self.state = state
         self.events = None  # Lazy loaded for stream processing only.
@@ -43,6 +43,6 @@ class Stream(object):
         self.events = events
 
     def __str__(self):
-        return "<Stream %s: Rule '%s' - %s>" % (self.uuid,
-                                              self.rule_id,
+        return "<Stream %s: Trigger Def: '%s' - %s>" % (self.uuid,
+                                              self.trigger_name,
                                               readable[self.state])

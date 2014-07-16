@@ -36,18 +36,18 @@ import daemon
 from docopt import docopt
 
 from oahu import config
-from oahu import mongodb_sync_engine as driver
+from oahu import mongodb_driver as driver
 from oahu import pipeline
-from oahu import stream_rules
-from oahu import trigger_callback
-from oahu import trigger_rule
+from oahu import trigger_definitions
+from oahu import pipeline_callback
+from oahu import criteria
 
 
 def run(poll, expired, ready, completed, conf):
     print "Polling rate:", poll
 
-    sync_engine = conf.get_sync_engine()
-    p = pipeline.Pipeline(sync_engine)
+    db_driver = conf.get_driver()
+    p = pipeline.Pipeline(db_driver)
 
     while True:
         now = datetime.datetime.utcnow()
@@ -69,8 +69,8 @@ def main():
     completed = arguments["completed"]
     poll = float(arguments['--polling_rate'])
 
-    sync_engine_location = arguments['<config_simport>']
-    conf = config.get_config(sync_engine_location)
+    driver_location = arguments['<config_simport>']
+    conf = config.get_config(driver_location)
 
     if arguments['--daemon']:
         with daemon.DaemonContext():

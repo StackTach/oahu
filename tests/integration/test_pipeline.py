@@ -21,10 +21,10 @@ import uuid
 import notigen
 
 from oahu import inmemory
-from oahu import mongodb_sync_engine
-from oahu import stream_rules
-from oahu import trigger_callback
-from oahu import trigger_rule
+from oahu import mongodb_driver
+from oahu import trigger_definition
+from oahu import pipeline_callback
+from oahu import criteria
 from oahu import pipeline
 
 
@@ -32,8 +32,9 @@ class OutOfOrderException(Exception):
     pass
 
 
-class TestCallback(object):
+class TestCallback(pipeline_callback.PipelineCallback):
     def __init__(self):
+        super(TestCallback, self).__init__()
         self.triggered = 0
         self.streams = {}
         self.request_set = set()
@@ -53,11 +54,11 @@ class TestCallback(object):
 
 
 class TestPipeline(unittest.TestCase):
-    def _pipeline(self, driver, rule_id, callback):
+    def _pipeline(self, driver, trigger_name, callback):
         p = pipeline.Pipeline(driver)
 
         driver.flush_all()
-        self.assertEqual(0, driver.get_num_active_streams(rule_id))
+        self.assertEqual(0, driver.get_num_active_streams(trigger_name))
 
         g = notigen.EventGenerator(100)
         now = datetime.datetime.utcnow()
@@ -72,38 +73,38 @@ class TestPipeline(unittest.TestCase):
                 nevents += len(events)
             now = g.move_to_next_tick(now)
 
-        self.assertTrue(driver.get_num_active_streams(rule_id) > 0)
+        self.assertTrue(driver.get_num_active_streams(trigger_name) > 0)
         now += datetime.timedelta(seconds=2)
 
         # no chunk size specified = all at once.
         p.do_expiry_check(now)
         p.process_ready_streams(now)
         p.purge_streams()
-        self.assertEqual(0, driver.get_num_active_streams(rule_id))
+        self.assertEqual(0, driver.get_num_active_streams(trigger_name))
         self.assertEqual(len(unique), callback.triggered)
         self.assertEqual(len(unique), len(callback.streams))
         self.assertEqual(unique, callback.request_set)
 
     def _get_rules(self):
-        inactive = trigger_rule.Inactive(60)
+        inactive = criteria.Inactive(60)
         callback = TestCallback()
-        rule_id = str(uuid.uuid4())
-        by_request = stream_rules.StreamRule(rule_id,
+        trigger_name = str(uuid.uuid4())
+        by_request = trigger_definition.TriggerDefinition(trigger_name,
                                              ["request_id", ],
                                              inactive, callback)
         rules = [by_request, ]
 
-        return (rules, callback, rule_id)
+        return (rules, callback, trigger_name)
 
     # TODO(sandy): The drivers for these tests will come from a configuration
     # and simport'ed.
 
     def test_inmemory(self):
-        rules, callback, rule_id = self._get_rules()
-        sync_engine = inmemory.InMemorySyncEngine(rules)
-        self._pipeline(sync_engine, rule_id, callback)
+        rules, callback, trigger_name = self._get_rules()
+        driver = inmemory.InMemoryDriver(rules)
+        self._pipeline(driver, trigger_name, callback)
 
     def test_mongo(self):
-        rules, callback, rule_id = self._get_rules()
-        sync_engine = mongodb_sync_engine.MongoDBSyncEngine(rules)
-        self._pipeline(sync_engine, rule_id, callback)
+        rules, callback, trigger_name = self._get_rules()
+        driver = mongodb_driver.MongoDBDriver(rules)
+        self._pipeline(driver, trigger_name, callback)

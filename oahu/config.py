@@ -25,7 +25,7 @@ class Config(object):
         self.callback = None
 
     @abc.abstractmethod
-    def get_sync_engine(self, callback=None):
+    def get_driver(self, callback=None):
         pass
 
     def get_ready_chunk_size(self):
@@ -38,6 +38,6 @@ class Config(object):
         return -1
 
 
-def get_config(sync_engine_location):
-    config_class = simport.load(sync_engine_location)
+def get_config(driver_location):
+    config_class = simport.load(driver_location)
     return config_class()

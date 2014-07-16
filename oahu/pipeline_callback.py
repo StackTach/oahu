@@ -13,6 +13,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-class TriggerCallback(object):
+import abc
+
+
+class PipelineCallback(object):
+    __metaclass__ = abc.ABCMeta
+
+    @abc.abstractmethod
     def on_trigger(self, stream):
         pass

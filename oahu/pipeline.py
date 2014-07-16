@@ -26,11 +26,11 @@ import datetime
 
 
 class Pipeline(object):
-    def __init__(self, sync_engine):
-        self.sync_engine = sync_engine
+    def __init__(self, db_driver):
+        self.db_driver = db_driver
 
     def add_event(self, event):
-        self.sync_engine.add_event(event)
+        self.db_driver.add_event(event)
 
     # These methods are called as periodic tasks and
     # may be expensive (in that they may iterate over
@@ -38,10 +38,10 @@ class Pipeline(object):
     def do_expiry_check(self, now=None, chunk=-1):
         if now is None:
             now = datetime.datetime.utcnow()
-        self.sync_engine.do_expiry_check(now, chunk=chunk)
+        self.db_driver.do_expiry_check(now, chunk=chunk)
 
     def purge_streams(self, chunk=-1):
-        self.sync_engine.purge_processed_streams(chunk=chunk)
+        self.db_driver.purge_processed_streams(chunk=chunk)
 
     def process_ready_streams(self, now=None, chunk=-1):
         """If the stream is ready we need to trigger it and
@@ -49,4 +49,4 @@ class Pipeline(object):
         """
         if now is None:
             now = datetime.datetime.utcnow()
-        self.sync_engine.process_ready_streams(now, chunk=chunk)
+        self.db_driver.process_ready_streams(now, chunk=chunk)

@@ -14,19 +14,19 @@
 # limitations under the License.
 
 
-class StreamRule(object):
-    def __init__(self, rule_id, identifying_trait_names, trigger_rule,
-                 trigger_callback):
-        self.rule_id = rule_id
+class TriggerDefinition(object):
+    def __init__(self, name, identifying_trait_names, criteria,
+                 pipeline_callback):
+        self.name = name
         self.identifying_trait_names = identifying_trait_names
-        self.trigger_rule = trigger_rule
-        self.trigger_callback = trigger_callback
+        self.criteria = criteria
+        self.pipeline_callback = pipeline_callback
 
     def applies(self, event):
-        """Returns True if this rule applies to the supplied Event.
+        """Returns True if the trait names apply to the supplied Event.
 
         The default behavior says: if you have the identifying traits
-        then this rule applies. Override for more complex stuff.
+        then this trigger def applies. Override for more complex stuff.
         """
         for name in self.identifying_trait_names:
             if name not in event:
@@ -40,7 +40,7 @@ class StreamRule(object):
         return dict((trait, event[trait]) for trait in
                                         self.identifying_trait_names)
 
-    def should_trigger(self, stream, last_event, now=None):
+    def should_fire(self, stream, last_event, now=None):
         """last_event could be None if we're doing a periodic check.
         """
-        return self.trigger_rule.should_trigger(stream, last_event, now=now)
+        return self.criteria.should_fire(stream, last_event, now=now)

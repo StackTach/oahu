@@ -18,31 +18,31 @@ import uuid
 
 import pymongo
 
-import sync_engine
+import db_driver
 import stream as pstream
 
 
 # Collections:
 # ["events"] = event docs
 #
-# ["rules"] = { 'rule_id',
-#               'stream_id',
-#               'identifying_traits': {trait: value, ...},
-#               'last_update',
-#               'state',
-#             } where xxx = rule_id
+# ["trigger_defs"] = { 'trigger_name',
+#                      'stream_id',
+#                      'identifying_traits': {trait: value, ...},
+#                      'last_update',
+#                      'state',
+#                    }
 #
 # ["streams'] = {'stream_id', 'message_id'}
 #
 
 
-class MongoDBSyncEngine(sync_engine.SyncEngine):
-    """Trivial Sync Engine that works in a distributed fashion.
+class MongoDBDriver(db_driver.DBDriver):
+    """Trivial DBDriver that works in a distributed fashion.
        For testing only. Do not attempt to use in production.
     """
 
-    def __init__(self, rules):
-        super(MongoDBSyncEngine, self).__init__(rules)
+    def __init__(self, trigger_defs):
+        super(MongoDBDriver, self).__init__(trigger_defs)
         self.client = pymongo.MongoClient()
         self.db = self.client['stacktach']
 
@@ -51,12 +51,12 @@ class MongoDBSyncEngine(sync_engine.SyncEngine):
         self.events.ensure_index("when")
         self.events.ensure_index("request_id")
 
-        self.rule_collection = self.db['rules']
-        self.rule_collection.ensure_index("rule_id")
-        self.rule_collection.ensure_index("stream_id")
-        self.rule_collection.ensure_index("state")
-        self.rule_collection.ensure_index("last_update")
-        self.rule_collection.ensure_index("identifying_traits")
+        self.tdef_collection = self.db['trigger_defs']
+        self.tdef_collection.ensure_index("trigger_name")
+        self.tdef_collection.ensure_index("stream_id")
+        self.tdef_collection.ensure_index("state")
+        self.tdef_collection.ensure_index("last_update")
+        self.tdef_collection.ensure_index("identifying_traits")
 
         self.streams = self.db['streams']
         self.streams.ensure_index('stream_id')
@@ -65,11 +65,11 @@ class MongoDBSyncEngine(sync_engine.SyncEngine):
     def save_event(self, message_id, event):
         self.events.insert(event)
 
-    def append_event(self, message_id, rule, event, trait_dict):
+    def append_event(self, message_id, trigger_def, event, trait_dict):
         # Find the stream (or make one) and tack on the message_id.
 
         stream_id = None
-        for doc in self.rule_collection.find({'rule_id': rule.rule_id,
+        for doc in self.tdef_collection.find({'trigger_name': trigger_def.name,
                                               'state': pstream.COLLECTING,
                                               'identifying_traits': trait_dict}):
             stream_id = doc['stream_id']
@@ -81,14 +81,14 @@ class MongoDBSyncEngine(sync_engine.SyncEngine):
             # Make a new Stream for this trait_dict ...
             stream_id = str(uuid.uuid4())
             stream = {'stream_id': stream_id,
-                      'rule_id': rule.rule_id,
+                      'trigger_name': trigger_def.name,
                       'last_update': now,
                       'identifying_traits': trait_dict,
                       'state_version': 1,
                       'state': pstream.COLLECTING,
                      }
             update_time = False
-            self.rule_collection.insert(stream)
+            self.tdef_collection.insert(stream)
 
         # Add this message_id to the stream collection ...
         entry = {'stream_id': stream_id,
@@ -97,7 +97,7 @@ class MongoDBSyncEngine(sync_engine.SyncEngine):
         self.streams.insert(entry)
 
         if update_time:
-            self.rule_collection.update({'stream_id': stream_id},
+            self.tdef_collection.update({'stream_id': stream_id},
                                         {'$set': {'last_update': now}})
 
     def do_expiry_check(self, now=None, chunk=-1):
@@ -106,47 +106,48 @@ class MongoDBSyncEngine(sync_engine.SyncEngine):
         num = 0
         ready = 0
 
-        query = self.rule_collection.find({'state': pstream.COLLECTING}).sort(
+        query = self.tdef_collection.find({'state': pstream.COLLECTING}).sort(
                                 [('last_update', pymongo.ASCENDING)])
         if chunk > 0:
             query = query.limit(chunk)
         for doc in query:
-            rule_id = doc['rule_id']
-            rule = self.rules_dict[rule_id]
+            trigger_name = doc['trigger_name']
+            trigger = self.trigger_defs_dict[trigger_name]
             num += 1
 
             stream = pstream.Stream(doc['stream_id'],
-                                    rule_id,
+                                    trigger_name,
                                     doc['state'],
                                     doc['last_update'])
-            if self._check_for_trigger(rule, stream, now=now):
+            if self._check_for_trigger(trigger, stream, now=now):
                 ready += 1
         print "%s - checked %d (%d ready)" % (now, num, ready)
 
     def purge_processed_streams(self, chunk=-1):
         now = datetime.datetime.utcnow()
         print "%s - purged %d" % (now,
-            self.rule_collection.remove({'state': pstream.PROCESSED})['n'])
+            self.tdef_collection.remove({'state': pstream.PROCESSED})['n'])
 
     def process_ready_streams(self, now, chunk=-1):
         num = 0
         locked = 0
-        query = self.rule_collection.find({'state': pstream.READY})
+        query = self.tdef_collection.find({'state': pstream.READY})
         if chunk > 0:
             query = query.limit(chunk)
         for ready in query:
-            result = self.rule_collection.update({'_id': ready['_id'],
-                                                  'state_version': ready['state_version']},
-                                                 {'$set': {'state': pstream.TRIGGERED},
-                                                  '$inc': {'state_version': 1}},
-                                                  safe=True)
+            result = self.tdef_collection.update(
+                {'_id': ready['_id'],
+                 'state_version': ready['state_version']},
+                {'$set': {'state': pstream.TRIGGERED},
+                 '$inc': {'state_version': 1}},
+                 safe=True)
             if result['n'] == 0:
                 locked += 1
                 continue  # Someone else got it first, move to next one.
 
             stream_id = ready['stream_id']
             stream = pstream.Stream(stream_id,
-                                    ready['rule_id'],
+                                    ready['trigger_name'],
                                     ready['state'],
                                     ready['last_update'])
 
@@ -158,24 +159,24 @@ class MongoDBSyncEngine(sync_engine.SyncEngine):
                     events.append(e)
 
             stream.set_events(events)
-            rule = self.rules_dict[ready['rule_id']]
-            rule.trigger_callback.on_trigger(stream)
-            self.rule_collection.update({'stream_id': stream_id},
-                                    {'$set': {'state': pstream.PROCESSED}})
+            trigger = self.trigger_defs_dict[ready['trigger_name']]
+            trigger.pipeline_callback.on_trigger(stream)
+            self.tdef_collection.update({'stream_id': stream_id},
+                                     {'$set': {'state': pstream.PROCESSED}})
         print "%s - processed %d/%d (%d locked)" % (now, num, chunk, locked)
 
-    def trigger(self, rule_id, stream):
-        self.rule_collection.update({'stream_id': stream.uuid},
-                                    {'$set': {'state': pstream.TRIGGERED}})
+    def trigger(self, trigger_name, stream):
+        self.tdef_collection.update({'stream_id': stream.uuid},
+                                 {'$set': {'state': pstream.TRIGGERED}})
 
-    def ready(self, rule_id, stream):
-        self.rule_collection.update({'stream_id': stream.uuid},
-                                    {'$set': {'state': pstream.READY}})
+    def ready(self, trigger_name, stream):
+        self.tdef_collection.update({'stream_id': stream.uuid},
+                                 {'$set': {'state': pstream.READY}})
 
-    def get_num_active_streams(self, rule_id):
-        return self.rule_collection.find({'rule_id': rule_id}).count()
+    def get_num_active_streams(self, trigger_name):
+        return self.tdef_collection.find({'trigger_name': trigger_name}).count()
 
     def flush_all(self):
-        self.db.drop_collection('rules')
+        self.db.drop_collection('trigger_defs')
         self.db.drop_collection('streams')
         self.db.drop_collection('events')
