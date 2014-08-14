@@ -13,7 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import copy
 import datetime
+import json
 import uuid
 
 import pymongo
@@ -34,6 +36,19 @@ import stream as pstream
 #
 # ["streams'] = {'stream_id', 'message_id'}
 #
+
+
+class Stream(pstream.Stream):
+    def __init__(self, uuid, trigger_name, state, last_update, driver):
+        super(Stream, self).__init__(uuid, trigger_name, state, last_update)
+        self.driver = driver
+        self.events_loaded = False
+
+    def load_events(self):
+        if self.events_loaded:
+            return
+        self.driver._load_events(self)
+        self.events_loaded = True
 
 
 class MongoDBDriver(db_driver.DBDriver):
@@ -62,8 +77,29 @@ class MongoDBDriver(db_driver.DBDriver):
         self.streams.ensure_index('stream_id')
         self.streams.ensure_index('when')
 
+    def _scrub_event(self, event):
+        if type(event) is list:
+            for x in event:
+                self._scrub_event(x)
+        elif type(event) is dict:
+            to_delete = []
+            to_add = []
+            for k, v in event.iteritems():
+                if '.' in k:
+                    new_k = k.replace('.', '~')
+                    to_delete.append(k)
+                    to_add.append((new_k, v))
+                self._scrub_event(v)
+            for k in to_delete:
+                del event[k]
+            for k, v in to_add:
+                event[k] = v
+
     def save_event(self, message_id, event):
-        self.events.insert(event)
+        safe = copy.deepcopy(event)
+        self._scrub_event(safe)
+        print "INSERTING", json.dumps(safe, indent=4)
+        self.events.insert(safe)
 
     def append_event(self, message_id, trigger_def, event, trait_dict):
         # Find the stream (or make one) and tack on the message_id.
@@ -92,7 +128,7 @@ class MongoDBDriver(db_driver.DBDriver):
 
         # Add this message_id to the stream collection ...
         entry = {'stream_id': stream_id,
-                 'when': event['when'],
+                 'when': event['timestamp'],
                  'message_id': message_id}
         self.streams.insert(entry)
 
@@ -115,10 +151,8 @@ class MongoDBDriver(db_driver.DBDriver):
             trigger = self.trigger_defs_dict[trigger_name]
             num += 1
 
-            stream = pstream.Stream(doc['stream_id'],
-                                    trigger_name,
-                                    doc['state'],
-                                    doc['last_update'])
+            stream = Stream(doc['stream_id'], trigger_name, doc['state'],
+                            doc['last_update'], self)
             if self._check_for_trigger(trigger, stream, now=now):
                 ready += 1
         print "%s - checked %d (%d ready)" % (now, num, ready)
@@ -127,6 +161,15 @@ class MongoDBDriver(db_driver.DBDriver):
         now = datetime.datetime.utcnow()
         print "%s - purged %d" % (now,
             self.tdef_collection.remove({'state': pstream.PROCESSED})['n'])
+
+    def _load_events(self, stream):
+        events = []
+        for mdoc in self.streams.find({'stream_id': stream.uuid}) \
+                                .sort('when', pymongo.ASCENDING):
+            for e in self.events.find({'message_id': mdoc['message_id']}):
+                events.append(e)
+
+        stream.set_events(events)
 
     def process_ready_streams(self, now, chunk=-1):
         num = 0
@@ -146,19 +189,11 @@ class MongoDBDriver(db_driver.DBDriver):
                 continue  # Someone else got it first, move to next one.
 
             stream_id = ready['stream_id']
-            stream = pstream.Stream(stream_id,
-                                    ready['trigger_name'],
-                                    ready['state'],
-                                    ready['last_update'])
+            stream = Stream(stream_id, ready['trigger_name'], ready['state'],
+                            ready['last_update'], self)
 
             num += 1
-            events = []
-            for mdoc in self.streams.find({'stream_id': stream_id}) \
-                                    .sort('when', pymongo.ASCENDING):
-                for e in self.events.find({'message_id': mdoc['message_id']}):
-                    events.append(e)
-
-            stream.set_events(events)
+            self._load_events(stream)
             trigger = self.trigger_defs_dict[ready['trigger_name']]
             trigger.pipeline_callback.on_trigger(stream)
             self.tdef_collection.update({'stream_id': stream_id},

@@ -84,9 +84,9 @@ class DBDriver(object):
     def _get_message_id(self, event):
         # We save the event, but only deal with the
         # message_id during stream processing.
-        message_id = event.get('message_id')
+        message_id = event.get('_unique_id')
         if not message_id:
-            raise BadEvent("Event has no message_id")
+            raise BadEvent("Event has no _unique_id")
 
         return message_id
 

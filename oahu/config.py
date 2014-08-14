@@ -28,6 +28,10 @@ class Config(object):
     def get_driver(self, callback=None):
         pass
 
+    @abc.abstractmethod
+    def get_distiller_config(self):
+        pass
+
     def get_ready_chunk_size(self):
         return -1
 

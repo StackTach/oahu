@@ -27,9 +27,18 @@ class TriggerDefinition(object):
 
         The default behavior says: if you have the identifying traits
         then this trigger def applies. Override for more complex stuff.
+
+        identifying trait names can be / separated to decend the nested
+        event map. For example "payload/instance_id" will get
+        {"payload": {"instance_id": "123"}}
+
+        Returns True if the path exists, False otherwise.
+        We don't care about the value, that's someone else's job.
         """
-        for name in self.identifying_trait_names:
-            if name not in event:
+        for path in self.identifying_trait_names:
+            try:
+                value = self._fetch(path, event)
+            except KeyError:
                 return False
         return True
 
@@ -37,8 +46,26 @@ class TriggerDefinition(object):
         return self.identifying_trait_names
 
     def get_identifying_trait_dict(self, event):
-        return dict((trait, event[trait]) for trait in
-                                        self.identifying_trait_names)
+        """Will skip any missing key values. But this
+           shouldn't be an issue since we should never
+           reach this call if applies() returns False.
+
+           We wouldn't want to assume None as the value
+           since that could be meaningful.
+           """
+        result = {}
+        for path in self.identifying_trait_names:
+            try:
+                result[path] = self._fetch(path, event)
+            except KeyError:
+                pass
+        return result
+
+    def _fetch(self, path, event):
+        parts = path.split('/')
+        for name in parts[:-1]:
+            event = event[name]
+        return event[parts[-1]]
 
     def should_fire(self, stream, last_event, now=None):
         """last_event could be None if we're doing a periodic check.

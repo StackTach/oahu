@@ -36,3 +36,45 @@ class Inactive(Criteria):
         if now is None:
             now = datetime.datetime.utcnow()
         return (now - stream.last_update).seconds > self.expiry_in_seconds
+
+
+class EventType(Criteria):
+    def __init__(self, event_type):
+        super(EventType, self).__init__()
+        self.event_type = event_type
+
+    def should_fire(self, stream, last_event, now=None):
+        if not last_event:
+            return False
+        return last_event['event_type'] == self.event_type
+
+
+class And(Criteria):
+    def __init__(self, criteria_list):
+        super(And, self).__init__()
+        self.criteria_list = criteria_list
+
+    def should_fire(self, stream, last_event, now=None):
+        should = [c.should_fire(stream, last_event, now)
+                                        for c in self.criteria_list]
+        return all(should)
+
+
+class EndOfDayExists(Criteria):
+    def __init__(self, exists_name):
+        super(EndOfDayExists, self).__init__()
+        self.exists_name = exists_name
+
+    def _is_zero_hour(self, tyme):
+        return tyme.second == 0 and tyme.minute == 0 and tyme.hour == 0
+
+    def should_fire(self, stream, last_event, now=None):
+        if not last_event:
+            return False
+
+        if last_event['event_type'] != self.exists_name:
+            return False
+
+        last_time = last_event.get('when')
+
+        return self._is_zero_hour(last_time)

@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import datetime
+import dateutil.parser
 
 import yagi.config
 import yagi.handler
@@ -30,7 +31,7 @@ class Callback(pipeline_callback.PipelineCallback):
     def on_trigger(self, stream):
         print "Got: ", stream
         for event in stream.events:
-            print event['event_type'], event['when']
+            print event['event_type'], event['timestamp']
 
 
 LOG = yagi.log.logger
@@ -58,6 +59,15 @@ class OahuHandler(yagi.handler.BaseHandler):
 
     def handle_messages(self, messages, env):
         for payload in self.iterate_payloads(messages, env):
+
+            # TODO(sandy) - we will need to run the raw event
+            # through the distiller and use the reduced set of Traits.
+            # But, until we do, we're going to massage the full notification
+            # to get what we need.
+
+            when = dateutil.parser.parse(payload['timestamp'])
+            payload['audit_bucket'] = str(when.date())
+
             self.pipeline.add_event(payload)
             self.processed += 1
 

@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import abc
+
 
 COLLECTING = 1
 READY = 2
@@ -32,6 +34,8 @@ class Stream(object):
     # So ... keep any important state change operations out of here.
     # It's likely the state will change via another worker.
 
+    __metaclass__ = abc.ABCMeta
+
     def __init__(self, uuid, trigger_name, state, last_update):
         self.uuid = uuid
         self.trigger_name = trigger_name
@@ -46,3 +50,11 @@ class Stream(object):
         return "<Stream %s: Trigger Def: '%s' - %s>" % (self.uuid,
                                               self.trigger_name,
                                               readable[self.state])
+
+    @abc.abstractmethod
+    def load_events(self):
+        """Derived classes should implement this so the events in
+           this stream can be loaded if needed. We don't want to
+           do this every time.
+        """
+        pass
