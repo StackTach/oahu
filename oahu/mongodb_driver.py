@@ -113,17 +113,11 @@ class MongoDBDriver(db_driver.DBDriver):
             stream_id = doc['stream_id']
             break
 
-        show = False
-        if event['event_type'] == 'compute.instance.exists':
-            payload = event['payload']
-            print "EOD?", payload['audit_period_beginning'], payload['audit_period_ending']
-            show = True
         now  = datetime.datetime.utcnow()
         update_time = True
         if not stream_id:
             # Make a new Stream for this trait_dict ...
             stream_id = str(uuid.uuid4())
-            print "New stream:", stream_id
             stream = {'stream_id': stream_id,
                       'trigger_name': trigger_def.name,
                       'last_update': now,
@@ -139,11 +133,6 @@ class MongoDBDriver(db_driver.DBDriver):
                  'when': event['timestamp'],
                  'message_id': message_id}
         self.streams.insert(entry)
-
-        if show:
-            x = self.streams.find({'stream_id': stream_id})
-            print "Added to %s (%d events %d)" % (stream_id, x.count(), x.count(True))
-
 
         if update_time:
             self.tdef_collection.update({'stream_id': stream_id},
@@ -188,11 +177,13 @@ class MongoDBDriver(db_driver.DBDriver):
         hit = False
         x = self.streams.find({'stream_id': stream.uuid}) \
                              .sort('when', pymongo.ASCENDING)
-        print "Stream: %s" % stream.uuid
+        #print "Stream: %s" % stream.uuid
         for mdoc in x:
             for e in self.events.find({'message_id': mdoc['message_id']}):
                 events.append(e)
-                print e['event_type'], e['payload'].get('audit_period_beginning', "nothinghere")[-8:] == "00:00:00", e['timestamp']
+                #print e['event_type'], e['payload'].get(
+                #        'audit_period_beginning',
+                #        "nothinghere")[-8:] == "00:00:00", e['timestamp']
         stream.set_events(events)
 
     def process_ready_streams(self, state, chunk, now):

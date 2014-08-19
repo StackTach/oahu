@@ -88,7 +88,6 @@ class EndOfDayExists(Criteria):
 
         audit_start = dateutil.parser.parse(audit_start)
         audit_end = dateutil.parser.parse(audit_end)
-        print ".exists!", audit_start, audit_end
 
         return (self._is_zero_hour(audit_start) and
                 self._is_zero_hour(audit_end))
