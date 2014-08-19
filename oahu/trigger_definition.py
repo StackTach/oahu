@@ -22,6 +22,9 @@ class TriggerDefinition(object):
         self.criteria = criteria
         self.pipeline_callback = pipeline_callback
 
+    def __str__(self):
+        return "<TriggerDef %s>" % self.name
+
     def applies(self, event):
         """Returns True if the trait names apply to the supplied Event.
 

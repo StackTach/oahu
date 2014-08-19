@@ -28,6 +28,7 @@ import datetime
 class Pipeline(object):
     def __init__(self, db_driver):
         self.db_driver = db_driver
+        self.cursor_state = db_driver.get_cursor_state()
 
     def add_event(self, event):
         self.db_driver.add_event(event)
@@ -35,18 +36,18 @@ class Pipeline(object):
     # These methods are called as periodic tasks and
     # may be expensive (in that they may iterate over
     # all streams).
-    def do_expiry_check(self, now=None, chunk=-1):
+    def do_expiry_check(self, chunk, now=None):
         if now is None:
             now = datetime.datetime.utcnow()
-        self.db_driver.do_expiry_check(now, chunk=chunk)
+        self.db_driver.do_expiry_check(self.cursor_state, chunk, now)
 
-    def purge_streams(self, chunk=-1):
-        self.db_driver.purge_processed_streams(chunk=chunk)
+    def purge_streams(self, chunk):
+        self.db_driver.purge_processed_streams(self.cursor_state, chunk)
 
-    def process_ready_streams(self, now=None, chunk=-1):
+    def process_ready_streams(self, chunk, now=None):
         """If the stream is ready we need to trigger it and
            process the pipeline.
         """
         if now is None:
             now = datetime.datetime.utcnow()
-        self.db_driver.process_ready_streams(now, chunk=chunk)
+        self.db_driver.process_ready_streams(self.cursor_state, chunk, now)

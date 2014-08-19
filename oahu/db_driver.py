@@ -22,6 +22,11 @@ class BadEvent(Exception):
     pass
 
 
+class CursorState(object):
+    def __init__(self):
+        self.offset = 0
+
+
 class DBDriver(object):
     __metaclass__ = abc.ABCMeta
 
@@ -45,6 +50,12 @@ class DBDriver(object):
             trait_dict = trigger.get_identifying_trait_dict(event)
             self.append_event(message_id, trigger, event, trait_dict)
 
+    def get_cursor_state(self):
+        """Returns an opaque state object that can store limit and offset
+           information for purse/process and ready checks.
+        """
+        return CursorState()
+
     @abc.abstractmethod
     def save_event(self, message_id, event):
         pass
@@ -54,15 +65,15 @@ class DBDriver(object):
         pass
 
     @abc.abstractmethod
-    def do_expiry_check(self, now=None, chunk=-1):
+    def do_expiry_check(self, state, chunk, now=None):
         pass
 
     @abc.abstractmethod
-    def purge_processed_streams(self, chunk=-1):
+    def purge_processed_streams(self, state, chunk):
         pass
 
     @abc.abstractmethod
-    def process_ready_streams(self, now, chunk=-1):
+    def process_ready_streams(self, state, chunk, now):
         pass
 
     @abc.abstractmethod
@@ -84,7 +95,8 @@ class DBDriver(object):
     def _get_message_id(self, event):
         # We save the event, but only deal with the
         # message_id during stream processing.
-        message_id = event.get('_unique_id')
+        # Gotta have this key!
+        message_id = event['_unique_id']
         if not message_id:
             raise BadEvent("Event has no _unique_id")
 

@@ -16,6 +16,8 @@
 import abc
 import datetime
 
+import dateutil.parser
+
 
 class Criteria(object):
     __metaclass__ = abc.ABCMeta
@@ -66,15 +68,27 @@ class EndOfDayExists(Criteria):
         self.exists_name = exists_name
 
     def _is_zero_hour(self, tyme):
-        return tyme.second == 0 and tyme.minute == 0 and tyme.hour == 0
+        return tyme.time() == datetime.time.min
 
     def should_fire(self, stream, last_event, now=None):
         if not last_event:
-            return False
+            stream.load_events()  # Ouch ... expensive.
+            if len(stream.events) == 0:
+                return False
+            last_event = stream.events[-1]
 
         if last_event['event_type'] != self.exists_name:
             return False
 
-        last_time = last_event.get('when')
+        payload = last_event['payload']
+        audit_start = payload.get('audit_period_beginning')
+        audit_end = payload.get('audit_period_ending')
+        if None in [audit_start, audit_end]:
+            return False
 
-        return self._is_zero_hour(last_time)
+        audit_start = dateutil.parser.parse(audit_start)
+        audit_end = dateutil.parser.parse(audit_end)
+        print ".exists!", audit_start, audit_end
+
+        return (self._is_zero_hour(audit_start) and
+                self._is_zero_hour(audit_end))

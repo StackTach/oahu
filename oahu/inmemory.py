@@ -48,10 +48,6 @@ class InMemoryDriver(db_driver.DBDriver):
        to support concurrent processing.
     """
 
-    def __init__(self, trigger_defs):
-        super(InMemoryDriver, self).__init__(trigger_defs)
-        self.flush_all()
-
     def save_event(self, mid, event):
         self.raw_events[mid] = event
 
@@ -73,12 +69,12 @@ class InMemoryDriver(db_driver.DBDriver):
         stream.last_update = now
         self._check_for_trigger(trigger, stream, event=event, now=now)
 
-    def do_expiry_check(self, now=None, chunk=-1):
+    def do_expiry_check(self, chunk, now=None):
         for trigger in self.trigger_defs:
             for sid, stream in self.active_streams[trigger.name].iteritems():
                 self._check_for_trigger(trigger, stream, now=now)
 
-    def purge_processed_streams(self, chunk=-1):
+    def purge_processed_streams(self, state, chunk):
         togo = []
         for rid, stream_map in self.active_streams.iteritems():
             for sid, stream in stream_map.iteritems():
@@ -88,7 +84,7 @@ class InMemoryDriver(db_driver.DBDriver):
         for rid, sid in togo:
             del self.active_streams[rid][sid]
 
-    def process_ready_streams(self, now, chunk=-1):
+    def process_ready_streams(self, chunk, now):
         for trigger in self.trigger_defs:
             for s in self._get_ready_streams(trigger.name):
                 stream = pstream.Stream(s.sid, trigger.name,

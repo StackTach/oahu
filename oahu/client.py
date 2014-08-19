@@ -49,11 +49,11 @@ def run(poll, expired, ready, completed, conf):
     while True:
         now = datetime.datetime.utcnow()
         if expired:
-            p.do_expiry_check(now, chunk=conf.get_expiry_chunk_size())
+            p.do_expiry_check(conf.get_expiry_chunk_size(), now)
         if ready:
-            p.process_ready_streams(now, chunk=conf.get_ready_chunk_size())
+            p.process_ready_streams(conf.get_ready_chunk_size(), now)
         if completed:
-            p.purge_streams(chunk=conf.get_completed_chunk_size())
+            p.purge_streams(conf.get_completed_chunk_size())
 
         time.sleep(poll)
 

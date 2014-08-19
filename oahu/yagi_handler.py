@@ -40,6 +40,7 @@ LOG = yagi.log.logger
 class OahuHandler(yagi.handler.BaseHandler):
     """Write the event to the Oaha pipeline.
     """
+    AUTO_ACK = True
 
     def __init__(self, app=None, queue_name=None):
         super(OahuHandler, self).__init__(app, queue_name)
@@ -58,17 +59,24 @@ class OahuHandler(yagi.handler.BaseHandler):
         self.processed = 0
 
     def handle_messages(self, messages, env):
-        for payload in self.iterate_payloads(messages, env):
+        for event in self.iterate_payloads(messages, env):
 
             # TODO(sandy) - we will need to run the raw event
             # through the distiller and use the reduced set of Traits.
             # But, until we do, we're going to massage the full notification
             # to get what we need.
 
-            when = dateutil.parser.parse(payload['timestamp'])
-            payload['audit_bucket'] = str(when.date())
+            payload = event['payload']
 
-            self.pipeline.add_event(payload)
+            when = dateutil.parser.parse(event['timestamp'])
+            audit = when
+            a_beginning = payload.get('audit_period_beginning')
+            if a_beginning:
+                audit = dateutil.parser.parse(a_beginning)
+            event['audit_bucket'] = str(audit.date())
+            event['timestamp'] = when  # force to datetime
+
+            self.pipeline.add_event(event)
             self.processed += 1
 
         now = datetime.datetime.utcnow()

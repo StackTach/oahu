@@ -36,11 +36,13 @@ class Stream(object):
 
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self, uuid, trigger_name, state, last_update):
+    def __init__(self, uuid, trigger_name, state, last_update,
+                 identifying_traits):
         self.uuid = uuid
         self.trigger_name = trigger_name
         self.last_update = last_update
         self.state = state
+        self.identifying_traits = identifying_traits
         self.events = None  # Lazy loaded for stream processing only.
 
     def set_events(self, events):
