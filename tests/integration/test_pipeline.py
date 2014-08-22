@@ -15,6 +15,7 @@
 
 import datetime
 import mock
+import os
 import unittest
 import uuid
 
@@ -42,14 +43,14 @@ class TestCallback(pipeline_callback.PipelineCallback):
     def on_trigger(self, stream):
         self.triggered += 1
         self.streams[stream.uuid] = stream
-        self.request_set.add(stream.events[0]['request_id'])
+        self.request_set.add(stream.events[0]['_context_request_id'])
 
         last = None
         for event in stream.events:
             if last != None:
-                if last['when'] > event['when']:
+                if last['timestamp'] > event['timestamp']:
                     raise OutOfOrderException("%s > %s" %
-                                            (last['when'], event['when']))
+                                    (last['timestamp'], event['timestamp']))
             last = event
 
 
@@ -60,26 +61,28 @@ class TestPipeline(unittest.TestCase):
         driver.flush_all()
         self.assertEqual(0, driver.get_num_active_streams(trigger_name))
 
-        g = notigen.EventGenerator(100)
+        # One operation per hour ...
+        g = notigen.EventGenerator("../../notigen/templates", 1)
         now = datetime.datetime.utcnow()
+        end = now + datetime.timedelta(days=1)
         nevents = 0
-        unique = set()
-        while nevents < 5000:
+        unique = set()  # unique requests
+        while now <= end:
             events = g.generate(now)
             if events:
                 for event in events:
                     p.add_event(event)
-                    unique.add(event['request_id'])
+                    unique.add(event['_context_request_id'])
                 nevents += len(events)
             now = g.move_to_next_tick(now)
 
         self.assertTrue(driver.get_num_active_streams(trigger_name) > 0)
         now += datetime.timedelta(seconds=2)
 
-        # no chunk size specified = all at once.
-        p.do_expiry_check(now)
-        p.process_ready_streams(now)
-        p.purge_streams()
+        chunk = 100000
+        p.do_expiry_check(chunk, now)
+        p.process_ready_streams(chunk, now)
+        p.purge_streams(chunk)
         self.assertEqual(0, driver.get_num_active_streams(trigger_name))
         self.assertEqual(len(unique), callback.triggered)
         self.assertEqual(len(unique), len(callback.streams))
@@ -90,7 +93,7 @@ class TestPipeline(unittest.TestCase):
         callback = TestCallback()
         trigger_name = str(uuid.uuid4())
         by_request = trigger_definition.TriggerDefinition(trigger_name,
-                                             ["request_id", ],
+                                             ["_context_request_id", ],
                                              inactive, callback)
         rules = [by_request, ]
 

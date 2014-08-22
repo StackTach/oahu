@@ -20,6 +20,18 @@ import db_driver
 import stream as pstream
 
 
+class LocalStream(pstream.Stream):
+    def __init__(self, uuid, trigger_name, state, last_update,
+                 identifying_traits, inmemory_stream):
+        super(LocalStream, self).__init__(uuid, trigger_name,
+                                          state, last_update,
+                                          identifying_traits)
+        self.inmemory_stream = inmemory_stream
+
+    def load_events(self):
+        self.events = self.inmemory_stream.messages
+
+
 class InMemoryStream(object):
     def __init__(self, trigger_name, identifying_traits, event):
         self.trigger_name = trigger_name
@@ -27,6 +39,7 @@ class InMemoryStream(object):
         self.messages = []
         self.last_update = datetime.datetime.utcnow()
         self.state = pstream.COLLECTING
+        self.events = None
 
         # Don't do this if we're creating from an existing stream ...
         self._extract_identifying_traits(identifying_traits, event)
@@ -69,7 +82,7 @@ class InMemoryDriver(db_driver.DBDriver):
         stream.last_update = now
         self._check_for_trigger(trigger, stream, event=event, now=now)
 
-    def do_expiry_check(self, chunk, now=None):
+    def do_expiry_check(self, state, chunk, now=None):
         for trigger in self.trigger_defs:
             for sid, stream in self.active_streams[trigger.name].iteritems():
                 self._check_for_trigger(trigger, stream, now=now)
@@ -84,11 +97,12 @@ class InMemoryDriver(db_driver.DBDriver):
         for rid, sid in togo:
             del self.active_streams[rid][sid]
 
-    def process_ready_streams(self, chunk, now):
+    def process_ready_streams(self, state, chunk, now):
         for trigger in self.trigger_defs:
             for s in self._get_ready_streams(trigger.name):
-                stream = pstream.Stream(s.sid, trigger.name,
-                                        s.state, s.last_update)
+                stream = LocalStream(s.sid, s.trigger_name, s.state,
+                                     s.last_update,
+                                     s.identifying_traits, s)
                 stream.set_events(self._get_events(s.messages))
                 trigger.pipeline_callback.on_trigger(stream)
                 self._processed(trigger.name, s)
@@ -103,7 +117,8 @@ class InMemoryDriver(db_driver.DBDriver):
         return len(self.active_streams.get(trigger_name, {}))
 
     def flush_all(self):
-        self.active_streams = {}  # { trigger_name: { stream_id: InMemoryStream } }
+        # { trigger_name: { stream_id: InMemoryStream } }
+        self.active_streams = {}
 
         # Obviously keeping all these in memory is very
         # expensive. Only suitable for tiny tests.
