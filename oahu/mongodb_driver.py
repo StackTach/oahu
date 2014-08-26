@@ -137,6 +137,7 @@ class MongoDBDriver(db_driver.DBDriver):
         if update_time:
             self.tdef_collection.update({'stream_id': stream_id},
                                         {'$set': {'last_update': now}})
+        return not update_time  # a new stream if we didn't update the time.
 
     def do_expiry_check(self, state, chunk, now=None):
         # TODO(sandy) - we need to get the expiry time as part of the

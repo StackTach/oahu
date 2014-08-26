@@ -22,9 +22,9 @@ import dateutil.parser
 class Criteria(object):
     __metaclass__ = abc.ABCMeta
 
-    @abc.abstractmethod
-    def should_fire(self, stream, last_event, now=None):
-        return False
+@abc.abstractmethod
+def should_fire(self, stream, last_event, now=None):
+    return False
 
 
 class Inactive(Criteria):
@@ -32,12 +32,14 @@ class Inactive(Criteria):
         super(Inactive, self).__init__()
         self.expiry_in_seconds = expiry_in_seconds
 
-    def should_fire(self, stream, last_event, now=None):
+    def should_fire(self, stream, last_event, debugger, now=None):
         secs = (now - stream.last_update).seconds
         #print "Stream %s = %d seconds (%d)" % (stream.uuid, secs, self.expiry_in_seconds)
         if now is None:
             now = datetime.datetime.utcnow()
-        return (now - stream.last_update).seconds > self.expiry_in_seconds
+        return debugger.check(
+            (now - stream.last_update).seconds > self.expiry_in_seconds,
+            "no timeout")
 
 
 class EventType(Criteria):
@@ -45,10 +47,11 @@ class EventType(Criteria):
         super(EventType, self).__init__()
         self.event_type = event_type
 
-    def should_fire(self, stream, last_event, now=None):
+    def should_fire(self, stream, last_event, debugger, now=None):
         if not last_event:
-            return False
-        return last_event['event_type'] == self.event_type
+            return debugger.rejected('no last event')
+        return debugger.check(last_event['event_type'] == self.event_type,
+                              "wrong event type")
 
 
 class And(Criteria):
@@ -56,10 +59,10 @@ class And(Criteria):
         super(And, self).__init__()
         self.criteria_list = criteria_list
 
-    def should_fire(self, stream, last_event, now=None):
-        should = [c.should_fire(stream, last_event, now)
+    def should_fire(self, stream, last_event, debugger, now=None):
+        should = [c.should_fire(stream, last_event, debugger, now)
                                         for c in self.criteria_list]
-        return all(should)
+        return debugger.check(all(should), "AND failed")
 
 
 class EndOfDayExists(Criteria):
@@ -70,24 +73,25 @@ class EndOfDayExists(Criteria):
     def _is_zero_hour(self, tyme):
         return tyme.time() == datetime.time.min
 
-    def should_fire(self, stream, last_event, now=None):
+    def should_fire(self, stream, last_event, debugger, now=None):
         if not last_event:
             stream.load_events()  # Ouch ... expensive.
             if len(stream.events) == 0:
-                return False
+                return debugger.criteria_mismatch("No events")
             last_event = stream.events[-1]
 
         if last_event['event_type'] != self.exists_name:
-            return False
+            return debugger.criteria_mismatch("Not event type")
 
         payload = last_event['payload']
         audit_start = payload.get('audit_period_beginning')
         audit_end = payload.get('audit_period_ending')
         if None in [audit_start, audit_end]:
-            return False
+            return debugger.criteria_mismatch("No audit beginning/end")
 
         audit_start = dateutil.parser.parse(audit_start)
         audit_end = dateutil.parser.parse(audit_end)
 
-        return (self._is_zero_hour(audit_start) and
-                self._is_zero_hour(audit_end))
+        return debugger.check(self._is_zero_hour(audit_start) and
+                              self._is_zero_hour(audit_end),
+                              "time != 00:00:00.0 ")

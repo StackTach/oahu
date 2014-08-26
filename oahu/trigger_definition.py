@@ -16,11 +16,13 @@
 
 class TriggerDefinition(object):
     def __init__(self, name, identifying_trait_names, criteria,
-                 pipeline_callback):
+                 pipeline_callback, debug=False, dumper=None):
         self.name = name
         self.identifying_trait_names = identifying_trait_names
         self.criteria = criteria
         self.pipeline_callback = pipeline_callback
+        self.debug = debug  # True/False, debug this TriggerDef?
+        self.dumper = dumper  # Which debugging dumper to use if True?
 
     def __str__(self):
         return "<TriggerDef %s>" % self.name
@@ -70,7 +72,8 @@ class TriggerDefinition(object):
             event = event[name]
         return event[parts[-1]]
 
-    def should_fire(self, stream, last_event, now=None):
+    def should_fire(self, stream, last_event, debugger, now=None):
         """last_event could be None if we're doing a periodic check.
         """
-        return self.criteria.should_fire(stream, last_event, now=now)
+        return self.criteria.should_fire(stream, last_event, debugger,
+                                         now=now)

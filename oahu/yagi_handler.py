@@ -60,7 +60,6 @@ class OahuHandler(yagi.handler.BaseHandler):
 
     def handle_messages(self, messages, env):
         for event in self.iterate_payloads(messages, env):
-
             # TODO(sandy) - we will need to run the raw event
             # through the distiller and use the reduced set of Traits.
             # But, until we do, we're going to massage the full notification
@@ -76,11 +75,17 @@ class OahuHandler(yagi.handler.BaseHandler):
             event['audit_bucket'] = str(audit.date())
             event['timestamp'] = when  # force to datetime
 
-            self.pipeline.add_event(event)
+            try:
+                self.pipeline.add_event(event)
+            except Exception as ex:
+                print ex
+
             self.processed += 1
 
         now = datetime.datetime.utcnow()
+
         if (now - self.last).seconds > 10:
             self.last = now
             print "Added %d events at %s" % (self.processed, now)
             self.processed = 0
+            self.driver.dump_debuggers(criteria_match=False)

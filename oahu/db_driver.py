@@ -14,7 +14,9 @@
 # limitations under the License.
 
 import abc
+import datetime
 
+import debugging
 import stream as pstream
 
 
@@ -32,11 +34,30 @@ class DBDriver(object):
 
     def __init__(self, trigger_defs):
         self.trigger_defs = trigger_defs  # [TriggerDefinitions, ...]
+        self.trigger_debuggers = {}
 
         # {trigger.name: TriggerDefinition} ... for lookups.
         self.trigger_defs_dict = {}
         for trigger in trigger_defs:
             self.trigger_defs_dict[trigger.name] = trigger
+
+    def _get_debugger(self, trigger_name):
+        debugger = self.trigger_debuggers.get(trigger_name)
+        if not debugger:
+            trigger = self.trigger_defs_dict[trigger_name]
+            if trigger.debug:
+                debugger = debugging.TriggerDebugger(trigger_name,
+                                                     dumper=trigger.dumper)
+            else:
+                debugger = debugging.NoOpTriggerDebugger()
+            self.trigger_debuggers[trigger_name] = debugger
+        return debugger
+
+    def dump_debuggers(self, trait_match=True, criteria_match=True):
+        for debugger in self.trigger_debuggers.values():
+            debugging.dump_debugger(debugger,
+                                    trait_match=trait_match,
+                                    criteria_match=criteria_match)
 
     def add_event(self, event):
         message_id = self._get_message_id(event)
@@ -44,11 +65,15 @@ class DBDriver(object):
 
         # An event may apply to many streams ...
         for trigger in self.trigger_defs:
+            debugger = self._get_debugger(trigger.name)
             if not trigger.applies(event):
+                debugger.trait_mismatch()
                 continue
+            debugger.trait_match()
 
             trait_dict = trigger.get_identifying_trait_dict(event)
-            self.append_event(message_id, trigger, event, trait_dict)
+            if self.append_event(message_id, trigger, event, trait_dict):
+                debugger.new_stream()
 
     def get_cursor_state(self):
         """Returns an opaque state object that can store limit and offset
@@ -108,7 +133,8 @@ class DBDriver(object):
         # rule object.
         if stream.state != pstream.COLLECTING:
             return False
-        if trigger.should_fire(stream, event, now=now):
+        debugger = self._get_debugger(trigger.name)
+        if trigger.should_fire(stream, event, debugger, now=now):
             self.ready(trigger.name, stream)
             return True
         return False

@@ -72,15 +72,18 @@ class InMemoryDriver(db_driver.DBDriver):
                 stream = s
                 break
 
+        is_new_stream = False
         if not stream:
             stream = self._create_stream(trigger.name,
                                          trigger.get_identifying_trait_names(),
                                          event)
+            is_new_stream = True
 
         stream.messages.append(message_id)
         now = datetime.datetime.utcnow()
         stream.last_update = now
         self._check_for_trigger(trigger, stream, event=event, now=now)
+        return is_new_stream
 
     def do_expiry_check(self, state, chunk, now=None):
         for trigger in self.trigger_defs:
