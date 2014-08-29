@@ -39,8 +39,9 @@ class TestCallback(pipeline_callback.PipelineCallback):
         self.triggered = 0
         self.streams = {}
         self.request_set = set()
+        self.commmitted = False
 
-    def on_trigger(self, stream):
+    def on_trigger(self, stream, scratchpad):
         self.triggered += 1
         self.streams[stream.uuid] = stream
         self.request_set.add(stream.events[0]['_context_request_id'])
@@ -52,6 +53,9 @@ class TestCallback(pipeline_callback.PipelineCallback):
                     raise OutOfOrderException("%s > %s" %
                                     (last['timestamp'], event['timestamp']))
             last = event
+
+    def commit(self, stream, scratchpad):
+        self.committed = True
 
 
 class TestPipeline(unittest.TestCase):
@@ -94,7 +98,7 @@ class TestPipeline(unittest.TestCase):
         trigger_name = str(uuid.uuid4())
         by_request = trigger_definition.TriggerDefinition(trigger_name,
                                              ["_context_request_id", ],
-                                             inactive, callback)
+                                             inactive, [callback, ])
         rules = [by_request, ]
 
         return (rules, callback, trigger_name)

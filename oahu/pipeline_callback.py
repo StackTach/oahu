@@ -20,5 +20,9 @@ class PipelineCallback(object):
     __metaclass__ = abc.ABCMeta
 
     @abc.abstractmethod
-    def on_trigger(self, stream):
+    def on_trigger(self, stream, scratchpad):
+        pass
+
+    @abc.abstractmethod
+    def commit(self, stream, scratchpad):
         pass

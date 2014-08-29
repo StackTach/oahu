@@ -21,11 +21,8 @@ import simport
 class Config(object):
     __metaclass__ = abc.ABCMeta
 
-    def __init__(self):
-        self.callback = None
-
     @abc.abstractmethod
-    def get_driver(self, callback=None):
+    def get_driver(self):
         pass
 
     @abc.abstractmethod

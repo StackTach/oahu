@@ -34,7 +34,7 @@ class DetailedDumper(SimpleDumper):
         super(DetailedDumper, self).dump_criteria_match(debugger)
 
         for reason in debugger._reasons.iteritems():
-            print " - reason for mismatch: '%s'=%d" % reason
+            print " - '%s' mismatches = %d" % reason
 
         # TODO(sandy): Should add provisions for exception counts.
 

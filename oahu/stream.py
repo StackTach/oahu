@@ -20,11 +20,15 @@ COLLECTING = 1
 READY = 2
 TRIGGERED = 3
 PROCESSED = 4
+ERROR = 5
+COMMIT_ERROR = 6
 
 readable = {COLLECTING: "Collecting",
             READY: "Ready",
             TRIGGERED: "Triggered",
-            PROCESSED: "Processed"}
+            PROCESSED: "Processed",
+            ERROR: "Error",
+            COMMIT_ERROR: "Commit Error"}
 
 
 class Stream(object):
