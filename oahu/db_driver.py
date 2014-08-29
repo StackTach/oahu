@@ -53,11 +53,13 @@ class DBDriver(object):
             self.trigger_debuggers[trigger_name] = debugger
         return debugger
 
-    def dump_debuggers(self, trait_match=True, criteria_match=True):
+    def dump_debuggers(self, trait_match=True, criteria_match=True,
+                       errors=True):
         for debugger in self.trigger_debuggers.values():
             debugging.dump_debugger(debugger,
                                     trait_match=trait_match,
-                                    criteria_match=criteria_match)
+                                    criteria_match=criteria_match,
+                                    errors=errors)
 
     def add_event(self, event):
         message_id = self._get_message_id(event)
@@ -162,6 +164,7 @@ class DBDriver(object):
         return False
 
     def _do_pipeline_callbacks(self, stream, trigger):
+        debugger = self._get_debugger(trigger.name)
         scratchpad = {}
         for callback in trigger.pipeline_callbacks:
             # If a callback fails, the whole pipeline fails.
@@ -171,6 +174,7 @@ class DBDriver(object):
                 callback.on_trigger(stream, scratchpad)
             except Exception as e:
                 print "ERROR:", e
+                debugger.trigger_error()
                 self.error(trigger.name, stream, str(e))
                 return False
 
@@ -179,6 +183,7 @@ class DBDriver(object):
                 callback.commit(stream, scratchpad)
             except Exception as e:
                 print "COMMIT ERROR:", e
+                debugger.commit_error()
                 self.commit_error(trigger.name, stream, str(e))
                 return False
 

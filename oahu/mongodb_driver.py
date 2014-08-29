@@ -196,6 +196,7 @@ class MongoDBDriver(db_driver.DBDriver):
                 #        'audit_period_beginning',
                 #        "nothinghere")[-8:] == "00:00:00", e['timestamp']
         stream.set_events(events)
+
     def process_ready_streams(self, state, chunk, now):
         num = 0
         locked = 0

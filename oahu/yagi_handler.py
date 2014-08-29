@@ -81,4 +81,4 @@ class OahuHandler(yagi.handler.BaseHandler):
             self.last = now
             print "Added %d events at %s" % (self.processed, now)
             self.processed = 0
-            self.driver.dump_debuggers(criteria_match=False)
+            self.driver.dump_debuggers(criteria_match=False, errors=False)

@@ -50,9 +50,10 @@ def run(poll, expired, ready, completed, conf):
         now = datetime.datetime.utcnow()
         if expired:
             p.do_expiry_check(conf.get_expiry_chunk_size(), now)
-            db_driver.dump_debuggers(trait_match=False)
+            db_driver.dump_debuggers(trait_match=False, errors=False)
         if ready:
             p.process_ready_streams(conf.get_ready_chunk_size(), now)
+            db_driver.dump_debuggers(criteria_match=False, trait_match=False)
         if completed:
             p.purge_streams(conf.get_completed_chunk_size())
 
