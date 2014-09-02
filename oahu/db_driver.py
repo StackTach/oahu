@@ -138,6 +138,10 @@ class DBDriver(object):
         pass
 
     @abc.abstractmethod
+    def get_streams_by_state(self, state):
+        pass
+
+    @abc.abstractmethod
     def flush_all(self):
         pass
 

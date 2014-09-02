@@ -261,6 +261,11 @@ class MongoDBDriver(db_driver.DBDriver):
         return self.tdef_collection.find({'trigger_name': trigger_name}
                                         ).count()
 
+    def get_streams_by_state(self, state, chunk, offset):
+        query = self.tdef_collection.find({'state': state}
+                                         ).limit(chunk).skip(offset)
+        return list(query)
+
     def flush_all(self):
         self.db.drop_collection('trigger_defs')
         self.db.drop_collection('streams')

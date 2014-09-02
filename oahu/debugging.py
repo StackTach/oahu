@@ -156,6 +156,6 @@ class TriggerDebugger(object):
         self._trigger_errors += 1
         return False
 
-    def commit_error(self, reason):
+    def commit_error(self):
         self._commit_errors += 1
         return False
