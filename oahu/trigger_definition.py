@@ -16,11 +16,11 @@
 
 class TriggerDefinition(object):
     def __init__(self, name, identifying_trait_names, criteria,
-                 pipeline_callback, debug=False, dumper=None):
+                 pipeline_callbacks, debug=False, dumper=None):
         self.name = name
         self.identifying_trait_names = identifying_trait_names
         self.criteria = criteria
-        self.pipeline_callback = pipeline_callback
+        self.pipeline_callbacks = pipeline_callbacks
         self.debug = debug  # True/False, debug this TriggerDef?
         self.dumper = dumper  # Which debugging dumper to use if True?
 

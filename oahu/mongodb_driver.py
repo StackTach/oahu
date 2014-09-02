@@ -31,6 +31,8 @@ import stream as pstream
 #                      'stream_id',
 #                      'identifying_traits': {trait: value, ...},
 #                      'last_update',
+#                      'commit_errors',
+#                      'last_error',
 #                      'state',
 #                    }
 #
@@ -50,6 +52,12 @@ class Stream(pstream.Stream):
             return
         self.driver._load_events(self)
         self.events_loaded = True
+
+    def error(self, last_exception):
+        self.driver.error(self, last_exception)
+
+    def commit_error(self, last_exception):
+        self.driver.commit_error(self, last_exception)
 
 
 class MongoDBDriver(db_driver.DBDriver):
@@ -123,6 +131,8 @@ class MongoDBDriver(db_driver.DBDriver):
                       'last_update': now,
                       'identifying_traits': trait_dict,
                       'state_version': 1,
+                      'commit_errors': 0,
+                      'last_error': "",
                       'state': pstream.COLLECTING,
                      }
             update_time = False
@@ -211,9 +221,7 @@ class MongoDBDriver(db_driver.DBDriver):
             num += 1
             self._load_events(stream)
             trigger = self.trigger_defs_dict[ready['trigger_name']]
-            trigger.pipeline_callback.on_trigger(stream)
-            self.tdef_collection.update({'stream_id': stream_id},
-                                     {'$set': {'state': pstream.PROCESSED}})
+            self._do_pipeline_callbacks(stream, trigger)
         size = query.retrieved
         if size < chunk:
             state.offset = 0
@@ -233,8 +241,30 @@ class MongoDBDriver(db_driver.DBDriver):
         self.tdef_collection.update({'stream_id': stream.uuid},
                                  {'$set': {'state': pstream.READY}})
 
+    def processed(self, trigger_name, stream):
+        self.tdef_collection.update({'stream_id': stream.uuid},
+                                 {'$set': {'state': pstream.PROCESSED}})
+
+    def error(self, trigger_name, stream, error):
+        self.tdef_collection.update({'stream_id': stream.uuid},
+                                 {'$set': {'state': pstream.ERROR,
+                                           'last_error': error}})
+
+    def commit_error(self, trigger_name, stream, error):
+        self.tdef_collection.update({'stream_id': stream.uuid},
+                                 {'$set': {'state': pstream.COMMIT_ERROR,
+                                           'last_error': error},
+                                  '$inc': {'commit_errors': 1},
+                                 })
+
     def get_num_active_streams(self, trigger_name):
-        return self.tdef_collection.find({'trigger_name': trigger_name}).count()
+        return self.tdef_collection.find({'trigger_name': trigger_name}
+                                        ).count()
+
+    def get_streams_by_state(self, state, chunk, offset):
+        query = self.tdef_collection.find({'state': state}
+                                         ).limit(chunk).skip(offset)
+        return list(query)
 
     def flush_all(self):
         self.db.drop_collection('trigger_defs')

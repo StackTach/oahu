@@ -53,11 +53,13 @@ class DBDriver(object):
             self.trigger_debuggers[trigger_name] = debugger
         return debugger
 
-    def dump_debuggers(self, trait_match=True, criteria_match=True):
+    def dump_debuggers(self, trait_match=True, criteria_match=True,
+                       errors=True):
         for debugger in self.trigger_debuggers.values():
             debugging.dump_debugger(debugger,
                                     trait_match=trait_match,
-                                    criteria_match=criteria_match)
+                                    criteria_match=criteria_match,
+                                    errors=errors)
 
     def add_event(self, event):
         message_id = self._get_message_id(event)
@@ -110,7 +112,33 @@ class DBDriver(object):
         pass
 
     @abc.abstractmethod
+    def processed(self, trigger_name, stream):
+        pass
+
+    @abc.abstractmethod
+    def error(self, trigger_name, stream, error):
+        """Mark this stream as being in the ERROR state, which means
+           a callback handler failed. 'error' is a
+           stringified error message.
+        """
+        pass
+
+    @abc.abstractmethod
+    def commit_error(self, trigger_name, stream, error):
+        """Mark this stream as being in the COMMIT_ERROR state, which
+           means a callback handler failed in the commit() phase.
+           'error' is a stringified error message.
+
+           These can be bad errors since we may do duplicate work.
+        """
+        pass
+
+    @abc.abstractmethod
     def get_num_active_streams(self, trigger_name):
+        pass
+
+    @abc.abstractmethod
+    def get_streams_by_state(self, state):
         pass
 
     @abc.abstractmethod
@@ -138,3 +166,30 @@ class DBDriver(object):
             self.ready(trigger.name, stream)
             return True
         return False
+
+    def _do_pipeline_callbacks(self, stream, trigger):
+        debugger = self._get_debugger(trigger.name)
+        scratchpad = {}
+        for callback in trigger.pipeline_callbacks:
+            # If a callback fails, the whole pipeline fails.
+            # If that behavior is not desired, the callback
+            # has to deal with error handling itself.
+            try:
+                callback.on_trigger(stream, scratchpad)
+            except Exception as e:
+                print "ERROR:", e
+                debugger.trigger_error()
+                self.error(trigger.name, stream, str(e))
+                return False
+
+        for callback in trigger.pipeline_callbacks:
+            try:
+                callback.commit(stream, scratchpad)
+            except Exception as e:
+                print "COMMIT ERROR:", e
+                debugger.commit_error()
+                self.commit_error(trigger.name, stream, str(e))
+                return False
+
+        self.processed(trigger.name, stream)
+        return True

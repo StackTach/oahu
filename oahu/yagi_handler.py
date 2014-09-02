@@ -27,13 +27,6 @@ from oahu import pipeline
 from oahu import pipeline_callback
 
 
-class Callback(pipeline_callback.PipelineCallback):
-    def on_trigger(self, stream):
-        print "Got: ", stream
-        for event in stream.events:
-            print event['event_type'], event['timestamp']
-
-
 LOG = yagi.log.logger
 
 
@@ -49,10 +42,10 @@ class OahuHandler(yagi.handler.BaseHandler):
 
         config_simport_location = self.config['config_class']
         self.oahu_config = oahu.config.get_config(config_simport_location)
-        self.driver = self.oahu_config.get_driver(callback=Callback())
+        self.driver = self.oahu_config.get_driver()
         self.pipeline = pipeline.Pipeline(self.driver)
 
-        # TODO(sandy) - wipe the database everytime for now
+        # TODO(sandy) - wipe the database every time, for now.
         self.driver.flush_all()
 
         self.last = datetime.datetime.utcnow()
@@ -88,4 +81,4 @@ class OahuHandler(yagi.handler.BaseHandler):
             self.last = now
             print "Added %d events at %s" % (self.processed, now)
             self.processed = 0
-            self.driver.dump_debuggers(criteria_match=False)
+            self.driver.dump_debuggers(criteria_match=False, errors=False)

@@ -22,9 +22,9 @@ import dateutil.parser
 class Criteria(object):
     __metaclass__ = abc.ABCMeta
 
-@abc.abstractmethod
-def should_fire(self, stream, last_event, now=None):
-    return False
+    @abc.abstractmethod
+    def should_fire(self, stream, last_event, now=None):
+        return False
 
 
 class Inactive(Criteria):
@@ -81,7 +81,7 @@ class EndOfDayExists(Criteria):
             last_event = stream.events[-1]
 
         if last_event['event_type'] != self.exists_name:
-            return debugger.criteria_mismatch("Not event type")
+            return debugger.criteria_mismatch("Wrong event type")
 
         payload = last_event['payload']
         audit_start = payload.get('audit_period_beginning')

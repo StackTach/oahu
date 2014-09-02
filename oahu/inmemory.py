@@ -39,6 +39,8 @@ class InMemoryStream(object):
         self.messages = []
         self.last_update = datetime.datetime.utcnow()
         self.state = pstream.COLLECTING
+        self.last_error = None
+        self.commit_errors = 0
         self.events = None
 
         # Don't do this if we're creating from an existing stream ...
@@ -107,14 +109,27 @@ class InMemoryDriver(db_driver.DBDriver):
                                      s.last_update,
                                      s.identifying_traits, s)
                 stream.set_events(self._get_events(s.messages))
-                trigger.pipeline_callback.on_trigger(stream)
-                self._processed(trigger.name, s)
+                self._do_pipeline_callbacks(stream, trigger)
 
     def ready(self, trigger_name, stream):
         self._change_stream_state(trigger_name, stream.sid, pstream.READY)
 
     def trigger(self, trigger_name, stream):
         self._change_stream_state(trigger_name, stream.sid, pstream.TRIGGERED)
+
+    def processed(self, trigger_name, stream):
+        self._change_stream_state(trigger_name, stream.sid, pstream.PROCESSED)
+
+    def error(self, trigger_name, stream, error):
+        self._change_stream_state(trigger_name, stream.sid, pstream.ERROR)
+        self.active_streams[trigger_name][stream.sid].last_error = error
+
+    def commit_error(self, trigger_name, stream, error):
+        self._change_stream_state(trigger_name, stream.sid,
+                                  pstream.COMMIT_ERROR)
+        s = self.active_streams[trigger_name][stream.sid]
+        s.last_error = error
+        s.commit_errors += 1
 
     def get_num_active_streams(self, trigger_name):
         return len(self.active_streams.get(trigger_name, {}))
@@ -147,5 +162,3 @@ class InMemoryDriver(db_driver.DBDriver):
     def _change_stream_state(self, trigger_name, stream_id, new_state):
         self.active_streams[trigger_name][stream_id].state = new_state
 
-    def _processed(self, trigger_name, stream):
-        self._change_stream_state(trigger_name, stream.sid, pstream.PROCESSED)

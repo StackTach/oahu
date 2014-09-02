@@ -28,22 +28,30 @@ class SimpleDumper(object):
             debugger._criteria_match,
             debugger._criteria_match+debugger._criteria_mismatch)
 
+    def dump_errors(self, debugger):
+        print "%s: %d on_trigger() errors, %d commit() errors" % (
+            debugger._name,
+            debugger._trigger_errors,
+            debugger._commit_errors)
+
 
 class DetailedDumper(SimpleDumper):
     def dump_criteria_match(self, debugger):
         super(DetailedDumper, self).dump_criteria_match(debugger)
 
         for reason in debugger._reasons.iteritems():
-            print " - reason for mismatch: '%s'=%d" % reason
+            print " - '%s' mismatches = %d" % reason
 
         # TODO(sandy): Should add provisions for exception counts.
 
 
-def dump_debugger(debugger, trait_match, criteria_match):
+def dump_debugger(debugger, trait_match, criteria_match, errors):
     if trait_match:
         debugger.dump_trait_match()
     if criteria_match:
         debugger.dump_criteria_match()
+    if errors:
+        debugger.dump_errors()
     debugger.reset()
 
 
@@ -55,6 +63,9 @@ class NoOpTriggerDebugger(object):
         pass
 
     def dump_criteria_match(self):
+        pass
+
+    def dump_errors(self):
         pass
 
     def reset(self):
@@ -78,6 +89,12 @@ class NoOpTriggerDebugger(object):
     def check(self, value, reason):
         return bool(value)
 
+    def trigger_error(self):
+        return False
+
+    def commit_error(self):
+        return False
+
 
 class TriggerDebugger(object):
     def __init__(self, name, dumper=None):
@@ -94,6 +111,9 @@ class TriggerDebugger(object):
     def dump_criteria_match(self):
         self.dumper.dump_criteria_match(self)
 
+    def dump_errors(self):
+        self.dumper.dump_errors(self)
+
     def reset(self):
         # If it's not a match or a mismatch it was a fatal error.
         self._trait_mismatch = 0
@@ -103,6 +123,9 @@ class TriggerDebugger(object):
         self._criteria_match = 0
         self._criteria_mismatch = 0
         self._reasons = {}
+
+        self._trigger_errors = 0
+        self._commit_errors = 0
 
     def trait_match(self):
         self._trait_match += 1
@@ -128,3 +151,11 @@ class TriggerDebugger(object):
         if value:
             return self.criteria_match()
         return self.criteria_mismatch(reason)
+
+    def trigger_error(self):
+        self._trigger_errors += 1
+        return False
+
+    def commit_error(self):
+        self._commit_errors += 1
+        return False
