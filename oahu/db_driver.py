@@ -142,6 +142,10 @@ class DBDriver(object):
         pass
 
     @abc.abstractmethod
+    def get_stream(self, stream_id):
+        pass
+
+    @abc.abstractmethod
     def flush_all(self):
         pass
 

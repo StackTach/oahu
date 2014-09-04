@@ -49,6 +49,14 @@ class Stream(object):
         self.identifying_traits = identifying_traits
         self.events = None  # Lazy loaded for stream processing only.
 
+    def to_dict(self):
+        # TODO(sandy) ... tack on the event particulars.
+        return {'stream_id': self.uuid,
+                'trigger_name': self.trigger_name,
+                'state': readable[self.state],
+                'last_updated': str(self.last_update),
+                'distinquishing_traits': self.identifying_traits}
+
     def set_events(self, events):
         self.events = events
 

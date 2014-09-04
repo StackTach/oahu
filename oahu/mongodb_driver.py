@@ -163,9 +163,7 @@ class MongoDBDriver(db_driver.DBDriver):
             trigger = self.trigger_defs_dict[trigger_name]
             num += 1
 
-            stream = Stream(doc['stream_id'], trigger_name, doc['state'],
-                            doc['last_update'], doc['identifying_traits'],
-                            self)
+            stream = self._stream_from_mongo(doc)
             if self._check_for_trigger(trigger, stream, now=now):
                 ready += 1
 
@@ -213,13 +211,9 @@ class MongoDBDriver(db_driver.DBDriver):
                 locked += 1
                 continue  # Someone else got it first, move to next one.
 
-            stream_id = ready['stream_id']
-            stream = Stream(stream_id, ready['trigger_name'], ready['state'],
-                            ready['last_update'], ready['identifying_traits'],
-                            self)
+            stream = self._stream_from_mongo(ready, True)
 
             num += 1
-            self._load_events(stream)
             trigger = self.trigger_defs_dict[ready['trigger_name']]
             self._do_pipeline_callbacks(stream, trigger)
         size = query.retrieved
@@ -261,10 +255,19 @@ class MongoDBDriver(db_driver.DBDriver):
         return self.tdef_collection.find({'trigger_name': trigger_name}
                                         ).count()
 
+    def _stream_from_mongo(self, record, details):
+        s = Stream(record['stream_id'], record['trigger_name'], record['state'],
+                   record['last_update'], record['identifying_traits'], self)
+        if details:
+            s.load_events()
+        return s
+
     def find_streams(self, **kwargs):
         query = self.tdef_collection
 
         hits = 0
+
+        details = kwargs.get('details')
 
         state = kwargs.get('state')
         if state:
@@ -289,11 +292,11 @@ class MongoDBDriver(db_driver.DBDriver):
         if not hits:
             query = query.find({})
 
-        return [{'last_updated': str(r['last_update']),
-                 'state': pstream.readable[r['state']],
-                 'trigger_name': r['trigger_name'],
-                 'distinquishing_traits': r['identifying_traits'],
-                 'stream_id': r['stream_id']} for r in query]
+        return [self._stream_from_mongo(r, details).to_dict() for r in query]
+
+    def get_stream(self, stream_id, details):
+        return [self._stream_from_mongo(r, details).to_dict()
+                for r in self.tdef_collection.find({'stream_id': stream_id})]
 
     def flush_all(self):
         self.db.drop_collection('trigger_defs')

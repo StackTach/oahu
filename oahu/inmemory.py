@@ -137,6 +137,16 @@ class InMemoryDriver(db_driver.DBDriver):
     def find_streams(self, **kwargs):
         return []  # TODO(sandy): need this for tox tests.
 
+    def get_stream(self, stream_id, details):
+        for trigger in self.trigger_defs:
+            for s in self._get_ready_streams(trigger.name):
+                if s.sid == stream_id:
+                    result = LocalStream(s.sid, s.trigger_name, s.state,
+                                  s.last_update, s.identifying_traits, s)
+                    if details:
+                        result.load_events()
+                    return result.to_dict()
+
     def flush_all(self):
         # { trigger_name: { stream_id: InMemoryStream } }
         self.active_streams = {}
