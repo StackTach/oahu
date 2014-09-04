@@ -134,6 +134,9 @@ class InMemoryDriver(db_driver.DBDriver):
     def get_num_active_streams(self, trigger_name):
         return len(self.active_streams.get(trigger_name, {}))
 
+    def find_streams(self, **kwargs):
+        return []  # TODO(sandy): need this for tox tests.
+
     def flush_all(self):
         # { trigger_name: { stream_id: InMemoryStream } }
         self.active_streams = {}
@@ -161,4 +164,3 @@ class InMemoryDriver(db_driver.DBDriver):
 
     def _change_stream_state(self, trigger_name, stream_id, new_state):
         self.active_streams[trigger_name][stream_id].state = new_state
-

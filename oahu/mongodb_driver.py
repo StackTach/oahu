@@ -261,10 +261,39 @@ class MongoDBDriver(db_driver.DBDriver):
         return self.tdef_collection.find({'trigger_name': trigger_name}
                                         ).count()
 
-    def get_streams_by_state(self, state, chunk, offset):
-        query = self.tdef_collection.find({'state': state}
-                                         ).limit(chunk).skip(offset)
-        return list(query)
+    def find_streams(self, **kwargs):
+        query = self.tdef_collection
+
+        hits = 0
+
+        state = kwargs.get('state')
+        if state:
+            query = query.find({'state': state})
+            hits += 1
+
+        name = kwargs.get('trigger_name')
+        if name:
+            query = query.find({'trigger_name': name})
+            hits += 1
+
+        older = kwargs.get('older_than')
+        if older:
+            query = query.find({'last_update': {'$lt': older}})
+            hits += 1
+
+        younger = kwargs.get('younger_than')
+        if younger:
+            query = query.find({'last_update': {'$gt': younger}})
+            hits += 1
+
+        if not hits:
+            query = query.find({})
+
+        return [{'last_updated': str(r['last_update']),
+                 'state': pstream.readable[r['state']],
+                 'trigger_name': r['trigger_name'],
+                 'distinquishing_traits': r['identifying_traits'],
+                 'stream_id': r['stream_id']} for r in query]
 
     def flush_all(self):
         self.db.drop_collection('trigger_defs')

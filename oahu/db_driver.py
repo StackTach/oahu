@@ -138,7 +138,7 @@ class DBDriver(object):
         pass
 
     @abc.abstractmethod
-    def get_streams_by_state(self, state):
+    def find_streams(self, **kwargs):
         pass
 
     @abc.abstractmethod

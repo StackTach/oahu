@@ -17,8 +17,6 @@
 
 Usage:
   pipeline (expired|ready|completed) <config_simport> [--daemon] [--polling_rate=<rate>]
-  pipeline errors <config_simport> [--commit_only|--trigger_only]
-  pipeline stream <config_simport> <stream_id>
   pipeline (-h | --help)
   pipeline --version
 
@@ -29,9 +27,6 @@ Options:
   --daemon               Run as daemon
   --polling_rate=<rate>  Rate in seconds [default: 300]
   <config_simport>       Config class location in Simport format
-  <stream_id>            ID of stream
-  --commit_only          show only commit-stage errors
-  --trigger_only         show only trigger-stage errors
 
 """
 import datetime
@@ -39,7 +34,6 @@ import time
 
 import daemon
 from docopt import docopt
-import prettytable
 
 from oahu import config
 from oahu import mongodb_driver as driver
@@ -67,33 +61,11 @@ def run(poll, expired, ready, completed, conf):
         time.sleep(poll)
 
 
-def list_errors(conf, trigger_only, commit_only):
-    # python git/oahu/oahu/client.py errors ".|oahu_config:Config"
-    db_driver = conf.get_driver()
-    states = [stream.ERROR, stream.COMMIT_ERROR]
-    if trigger_only:
-        states = [stream.ERROR,]
-    if commit_only:
-        states = [stream.COMMIT_ERROR,]
-    for state in states:
-        print "'%s' State Streams:" % stream.readable[state]
-        tdef = db_driver.get_streams_by_state(state, 1000, 0)
-        table = prettytable.PrettyTable(["ID", "Trigger", "Last Error"])
-        for t in tdef:
-            table.add_row([t['stream_id'], t['trigger_name'], t['last_error']])
-        print str(table)
-
-
 def main():
     arguments = docopt(__doc__)
 
     driver_location = arguments['<config_simport>']
     conf = config.get_config(driver_location)
-
-    if arguments["errors"]:
-        list_errors(conf, arguments['--trigger_only'],
-                    arguments['--commit_only'])
-        return
 
     expired = arguments["expired"]
     ready = arguments["ready"]
