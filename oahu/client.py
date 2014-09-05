@@ -16,7 +16,7 @@
 """Pipeline - periodic pipeline processing for StackTach.v3
 
 Usage:
-  pipeline (expired|ready|completed) <config_simport> [--daemon] [--polling_rate=<rate>]
+  pipeline (trigger|ready|completed) <config_simport> [--daemon] [--polling_rate=<rate>]
   pipeline (-h | --help)
   pipeline --version
 
@@ -41,7 +41,7 @@ from oahu import pipeline
 from oahu import stream
 
 
-def run(poll, expired, ready, completed, conf):
+def run(poll, trigger, ready, completed, conf):
     print "Polling rate:", poll
 
     db_driver = conf.get_driver()
@@ -49,8 +49,8 @@ def run(poll, expired, ready, completed, conf):
 
     while True:
         now = datetime.datetime.utcnow()
-        if expired:
-            p.do_expiry_check(conf.get_expiry_chunk_size(), now)
+        if trigger:
+            p.do_trigger_check(conf.get_trigger_chunk_size(), now)
             db_driver.dump_debuggers(trait_match=False, errors=False)
         if ready:
             p.process_ready_streams(conf.get_ready_chunk_size(), now)
@@ -67,16 +67,16 @@ def main():
     driver_location = arguments['<config_simport>']
     conf = config.get_config(driver_location)
 
-    expired = arguments["expired"]
+    trigger = arguments["trigger"]
     ready = arguments["ready"]
     completed = arguments["completed"]
     poll = float(arguments['--polling_rate'])
 
     if arguments['--daemon']:
         with daemon.DaemonContext():
-            run(poll, expired, ready, completed, conf)
+            run(poll, trigger, ready, completed, conf)
     else:
-        run(poll, expired, ready, completed, conf)
+        run(poll, trigger, ready, completed, conf)
 
 
 if __name__ == '__main__':

@@ -149,7 +149,7 @@ class MongoDBDriver(db_driver.DBDriver):
                                         {'$set': {'last_update': now}})
         return not update_time  # a new stream if we didn't update the time.
 
-    def do_expiry_check(self, state, chunk, now=None):
+    def do_trigger_check(self, state, chunk, now=None):
         # TODO(sandy) - we need to get the expiry time as part of the
         #               stream document so the search is optimal.
         num = 0
@@ -163,7 +163,7 @@ class MongoDBDriver(db_driver.DBDriver):
             trigger = self.trigger_defs_dict[trigger_name]
             num += 1
 
-            stream = self._stream_from_mongo(doc)
+            stream = self._stream_from_mongo(doc, False)
             if self._check_for_trigger(trigger, stream, now=now):
                 ready += 1
 

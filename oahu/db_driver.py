@@ -92,7 +92,7 @@ class DBDriver(object):
         pass
 
     @abc.abstractmethod
-    def do_expiry_check(self, state, chunk, now=None):
+    def do_trigger_check(self, state, chunk, now=None):
         pass
 
     @abc.abstractmethod
@@ -181,7 +181,6 @@ class DBDriver(object):
             try:
                 callback.on_trigger(stream, scratchpad)
             except Exception as e:
-                print "ERROR:", e
                 debugger.trigger_error()
                 self.error(trigger.name, stream, str(e))
                 return False
@@ -190,7 +189,6 @@ class DBDriver(object):
             try:
                 callback.commit(stream, scratchpad)
             except Exception as e:
-                print "COMMIT ERROR:", e
                 debugger.commit_error()
                 self.commit_error(trigger.name, stream, str(e))
                 return False

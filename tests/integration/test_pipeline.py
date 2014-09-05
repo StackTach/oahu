@@ -84,7 +84,7 @@ class TestPipeline(unittest.TestCase):
         now += datetime.timedelta(seconds=2)
 
         chunk = 100000
-        p.do_expiry_check(chunk, now)
+        p.do_trigger_check(chunk, now)
         p.process_ready_streams(chunk, now)
         p.purge_streams(chunk)
         self.assertEqual(0, driver.get_num_active_streams(trigger_name))

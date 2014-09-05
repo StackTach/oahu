@@ -49,7 +49,7 @@ class EventType(Criteria):
 
     def should_fire(self, stream, last_event, debugger, now=None):
         if not last_event:
-            return debugger.rejected('no last event')
+            return debugger.criteria_mismatch('no last event')
         return debugger.check(last_event['event_type'] == self.event_type,
                               "wrong event type")
 

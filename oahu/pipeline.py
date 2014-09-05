@@ -17,8 +17,8 @@ import datetime
 
 """There are several places we need to process the streams:
    1. When a new event comes in.
-   2. Periodically to check for expired streams.
-   3. Periodically to process triggered streams.
+   2. Periodically to check for triggered streams.
+   3. Periodically to process ready streams.
    4. Periodically to delete processed streams.
    These last three could be dealing with potentially large sets
    and each operation could be done by multiple workers.
@@ -36,10 +36,10 @@ class Pipeline(object):
     # These methods are called as periodic tasks and
     # may be expensive (in that they may iterate over
     # all streams).
-    def do_expiry_check(self, chunk, now=None):
+    def do_trigger_check(self, chunk, now=None):
         if now is None:
             now = datetime.datetime.utcnow()
-        self.db_driver.do_expiry_check(self.cursor_state, chunk, now)
+        self.db_driver.do_trigger_check(self.cursor_state, chunk, now)
 
     def purge_streams(self, chunk):
         self.db_driver.purge_processed_streams(self.cursor_state, chunk)
